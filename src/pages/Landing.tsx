@@ -17,15 +17,32 @@ const Landing = () => {
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session?.user) {
+        const user = session.user;
+        const tipoFromUser = (user.user_metadata as any)?.tipo as string | undefined;
+
         const { data: profileData } = await supabase
           .from("profiles")
           .select("tipo")
-          .eq("id", session.user.id)
+          .eq("id", user.id)
           .maybeSingle();
 
-        if (profileData?.tipo === 'barbeiro') {
+        const effectiveTipo = profileData?.tipo ?? tipoFromUser;
+
+        // Sincroniza divergências entre metadata e perfil
+        if (tipoFromUser && profileData && profileData.tipo !== tipoFromUser) {
+          await supabase
+            .from("profiles")
+            .update({ tipo: tipoFromUser })
+            .eq("id", user.id);
+        } else if (tipoFromUser && !profileData) {
+          await supabase
+            .from("profiles")
+            .upsert({ id: user.id, email: user.email, nome: (user.user_metadata as any)?.nome, tipo: tipoFromUser });
+        }
+
+        if (effectiveTipo === 'barbeiro') {
           navigate("/barber-dashboard", { replace: true });
-        } else if (profileData?.tipo === 'admin') {
+        } else if (effectiveTipo === 'admin') {
           navigate("/dashboard", { replace: true });
         }
       }

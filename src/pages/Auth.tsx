@@ -69,20 +69,42 @@ const Auth = () => {
       // Buscar perfil do usuário para redirecionar corretamente
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        const tipoFromUser = (user.user_metadata as any)?.tipo as ('admin' | 'barbeiro' | 'cliente') | undefined;
+
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select("tipo")
           .eq("id", user.id)
           .maybeSingle();
 
-        console.log("Profile data:", profileData); // Debug temporário
+        console.log("Profile data:", profileData, "user_metadata.tipo:", tipoFromUser);
 
         if (profileError) {
           console.error("Erro ao buscar perfil:", profileError);
         }
 
-        // Redirecionar baseado no tipo de usuário
-        if (profileData?.tipo === 'barbeiro') {
+        const effectiveTipo = profileData?.tipo ?? tipoFromUser;
+
+        // Se houver divergência, sincroniza o perfil com o metadata do usuário
+        if (tipoFromUser && profileData && profileData.tipo !== tipoFromUser) {
+          const { error: updateError } = await supabase
+            .from("profiles")
+            .update({ tipo: tipoFromUser })
+            .eq("id", user.id);
+          if (updateError) {
+            console.error("Erro ao atualizar tipo no perfil:", updateError);
+          } else {
+            console.log("Perfil sincronizado para tipo:", tipoFromUser);
+          }
+        } else if (tipoFromUser && !profileData) {
+          // Caso não exista perfil, cria um registro mínimo
+          const { error: insertError } = await supabase
+            .from("profiles")
+            .upsert({ id: user.id, email: user.email, nome: (user.user_metadata as any)?.nome, tipo: tipoFromUser });
+          if (insertError) console.error("Erro ao criar perfil:", insertError);
+        }
+
+        if (effectiveTipo === 'barbeiro') {
           navigate("/barber-dashboard", { replace: true });
         } else {
           // Admin ou qualquer outro tipo vai para dashboard
