@@ -47,7 +47,7 @@ const Reports = () => {
         .eq("barbearia_id", barbeariasData.id);
 
       // Buscar transações
-      const { data: transacoes } = await supabase
+      const { data: transacoes } = await (supabase as any)
         .from("transacoes")
         .select("*")
         .eq("barbearia_id", barbeariasData.id);
