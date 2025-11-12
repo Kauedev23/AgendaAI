@@ -61,8 +61,26 @@ const Auth = () => {
 
       if (error) throw error;
 
-      toast.success("Login realizado com sucesso!");
-      navigate("/dashboard");
+      // Buscar perfil do usuário para redirecionar corretamente
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("tipo")
+          .eq("id", user.id)
+          .single();
+
+        toast.success("Login realizado com sucesso!");
+        
+        // Redirecionar baseado no tipo de usuário
+        if (profileData?.tipo === 'barbeiro') {
+          navigate("/barber-dashboard");
+        } else if (profileData?.tipo === 'admin') {
+          navigate("/dashboard");
+        } else {
+          navigate("/");
+        }
+      }
     } catch (error: any) {
       toast.error(error.message || "Erro ao fazer login");
     } finally {

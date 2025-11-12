@@ -10,6 +10,13 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
+  const [barbearia, setBarbearia] = useState<any>(null);
+  const [stats, setStats] = useState({
+    agendamentos: 0,
+    clientes: 0,
+    barbeiros: 0,
+    servicos: 0
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,6 +42,61 @@ const Dashboard = () => {
         .single();
 
       setProfile(profileData);
+
+      // Redirecionar barbeiros para seu dashboard específico
+      if (profileData?.tipo === 'barbeiro') {
+        navigate("/barber-dashboard");
+        return;
+      }
+
+      // Se não for admin, redirecionar
+      if (profileData?.tipo !== 'admin') {
+        navigate("/");
+        return;
+      }
+
+      // Buscar barbearia do admin
+      const { data: barbeariaData } = await supabase
+        .from("barbearias")
+        .select("*")
+        .eq("admin_id", user.id)
+        .maybeSingle();
+
+      if (!barbeariaData) {
+        navigate("/settings");
+        return;
+      }
+
+      setBarbearia(barbeariaData);
+
+      // Buscar estatísticas
+      const [agendamentos, clientes, barbeiros, servicos] = await Promise.all([
+        supabase
+          .from("agendamentos")
+          .select("id", { count: 'exact', head: true })
+          .eq("barbearia_id", barbeariaData.id),
+        supabase
+          .from("agendamentos")
+          .select("cliente_id", { count: 'exact', head: true })
+          .eq("barbearia_id", barbeariaData.id),
+        supabase
+          .from("barbeiros")
+          .select("id", { count: 'exact', head: true })
+          .eq("barbearia_id", barbeariaData.id)
+          .eq("ativo", true),
+        supabase
+          .from("servicos")
+          .select("id", { count: 'exact', head: true })
+          .eq("barbearia_id", barbeariaData.id)
+          .eq("ativo", true)
+      ]);
+
+      setStats({
+        agendamentos: agendamentos.count || 0,
+        clientes: clientes.count || 0,
+        barbeiros: barbeiros.count || 0,
+        servicos: servicos.count || 0
+      });
     } catch (error: any) {
       console.error("Erro ao verificar usuário:", error);
     } finally {
@@ -107,14 +169,14 @@ const Dashboard = () => {
           <Card className="card-hover">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Agendamentos Hoje
+                Total de Agendamentos
               </CardTitle>
               <Calendar className="h-5 w-5 text-secondary" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-primary">0</div>
+              <div className="text-3xl font-bold text-primary">{stats.agendamentos}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                Nenhum agendamento ainda
+                {stats.agendamentos === 0 ? 'Nenhum agendamento ainda' : 'agendamentos realizados'}
               </p>
             </CardContent>
           </Card>
@@ -122,14 +184,14 @@ const Dashboard = () => {
           <Card className="card-hover">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total de Clientes
+                Clientes Únicos
               </CardTitle>
               <Users className="h-5 w-5 text-secondary" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-primary">0</div>
+              <div className="text-3xl font-bold text-primary">{stats.clientes}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                Comece a receber agendamentos
+                {stats.clientes === 0 ? 'Comece a receber agendamentos' : 'clientes cadastrados'}
               </p>
             </CardContent>
           </Card>
@@ -142,9 +204,9 @@ const Dashboard = () => {
               <Scissors className="h-5 w-5 text-secondary" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-primary">0</div>
+              <div className="text-3xl font-bold text-primary">{stats.barbeiros}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                Cadastre sua equipe
+                {stats.barbeiros === 0 ? 'Cadastre sua equipe' : 'profissionais ativos'}
               </p>
             </CardContent>
           </Card>
@@ -157,9 +219,9 @@ const Dashboard = () => {
               <TrendingUp className="h-5 w-5 text-secondary" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-primary">0</div>
+              <div className="text-3xl font-bold text-primary">{stats.servicos}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                Configure seus serviços
+                {stats.servicos === 0 ? 'Configure seus serviços' : 'serviços disponíveis'}
               </p>
             </CardContent>
           </Card>

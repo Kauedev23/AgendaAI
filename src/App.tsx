@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
+import BarberDashboard from "./pages/BarberDashboard";
 import Settings from "./pages/Settings";
 import Barbers from "./pages/Barbers";
 import Services from "./pages/Services";
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/" element={<Landing />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/barber-dashboard" element={<BarberDashboard />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/barbers" element={<Barbers />} />
           <Route path="/services" element={<Services />} />

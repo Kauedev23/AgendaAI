@@ -36,6 +36,19 @@ const Services = () => {
         return;
       }
 
+      // Verificar se é admin
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("tipo")
+        .eq("id", user.id)
+        .single();
+
+      if (profileData?.tipo !== 'admin') {
+        toast.error("Acesso negado. Apenas administradores podem acessar esta página.");
+        navigate("/");
+        return;
+      }
+
       const { data: barbeariasData } = await supabase
         .from("barbearias")
         .select("*")
