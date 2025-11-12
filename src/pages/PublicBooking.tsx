@@ -103,16 +103,25 @@ const PublicBooking = () => {
 
       setBarbearia(barbeariasData);
 
-      const { data: barbeirosData } = await supabase
-        .from("barbeiros")
-        .select(`
-          *,
-          profiles:user_id (nome)
-        `)
-        .eq("barbearia_id", barbeariasData.id)
-        .eq("ativo", true);
+      // Usar a função pública segura para buscar barbeiros
+      const { data: barbeirosData, error: barbeirosError } = await supabase
+        .rpc('get_public_barbers', { _slug: slug });
 
-      setBarbeiros(barbeirosData || []);
+      if (barbeirosError) {
+        console.error("Erro ao buscar barbeiros:", barbeirosError);
+        toast.error("Erro ao carregar barbeiros");
+      }
+
+      // Mapear dados para o formato esperado
+      const barbeirosFormatted = (barbeirosData || []).map((b: any) => ({
+        id: b.id,
+        bio: b.bio,
+        especialidades: b.especialidades,
+        foto_url: b.foto_url,
+        profiles: { nome: b.nome }
+      }));
+
+      setBarbeiros(barbeirosFormatted);
 
       const { data: servicosData } = await supabase
         .from("servicos")
