@@ -47,7 +47,7 @@ const PublicBooking = () => {
         .from("barbearias")
         .select("*")
         .eq("slug", slug)
-        .single();
+        .maybeSingle();
 
       if (!barbeariasData) {
         toast.error("Barbearia não encontrada");
@@ -96,18 +96,39 @@ const PublicBooking = () => {
       current = new Date(current.getTime() + 30 * 60000); // +30 min
     }
 
-    // Buscar horários já ocupados
-    const { data: agendamentos } = await supabase
-      .from("agendamentos")
-      .select("hora")
-      .eq("barbeiro_id", selectedBarbeiro)
-      .eq("data", selectedDate)
-      .in("status", ["pendente", "confirmado"]);
+      // Buscar horários já ocupados
+      const { data: agendamentos } = await supabase
+        .from("agendamentos")
+        .select("hora, servico_id")
+        .eq("barbeiro_id", selectedBarbeiro)
+        .eq("data", selectedDate)
+        .in("status", ["pendente", "confirmado"]);
 
-    const occupiedTimes = agendamentos?.map(a => a.hora) || [];
-    const available = times.filter(time => !occupiedTimes.includes(time));
+      // Mapear horários ocupados considerando duração do serviço
+      const occupiedSlots = new Set<string>();
+      
+      if (agendamentos) {
+        for (const ag of agendamentos) {
+          const { data: servico } = await supabase
+            .from("servicos")
+            .select("duracao")
+            .eq("id", ag.servico_id)
+            .single();
+          
+          if (servico) {
+            const startTime = parse(ag.hora, "HH:mm", new Date());
+            const slots = Math.ceil(servico.duracao / 30); // quantos blocos de 30min
+            
+            for (let i = 0; i < slots; i++) {
+              const blockedTime = new Date(startTime.getTime() + i * 30 * 60000);
+              occupiedSlots.add(format(blockedTime, "HH:mm"));
+            }
+          }
+        }
+      }
 
-    setAvailableTimes(available);
+      const available = times.filter(time => !occupiedSlots.has(time));
+      setAvailableTimes(available);
   };
 
   const handleBooking = async () => {
@@ -123,30 +144,33 @@ const PublicBooking = () => {
         .from("profiles")
         .select("id")
         .eq("email", clientData.email)
-        .single();
+        .maybeSingle();
 
       if (existingClient) {
         clienteId = existingClient.id;
       } else {
         // Criar novo usuário cliente
+        const tempPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-10);
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: clientData.email,
-          password: Math.random().toString(36).slice(-10),
+          password: tempPassword,
           options: {
             data: {
               nome: clientData.nome,
               tipo: "cliente"
-            }
+            },
+            emailRedirectTo: `${window.location.origin}/`
           }
         });
 
         if (authError) {
+          console.error("Auth error:", authError);
           // Se usuário já existe, buscar ID
           const { data: userData } = await supabase
             .from("profiles")
             .select("id")
             .eq("email", clientData.email)
-            .single();
+            .maybeSingle();
           clienteId = userData?.id;
         } else {
           clienteId = authData.user?.id;
@@ -156,6 +180,14 @@ const PublicBooking = () => {
       if (!clienteId) {
         toast.error("Erro ao processar cliente");
         return;
+      }
+
+      // Atualizar telefone se fornecido
+      if (clientData.telefone) {
+        await supabase
+          .from("profiles")
+          .update({ telefone: clientData.telefone })
+          .eq("id", clienteId);
       }
 
       // Criar agendamento

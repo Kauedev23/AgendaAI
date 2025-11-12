@@ -45,7 +45,7 @@ const Settings = () => {
         .from("barbearias")
         .select("*")
         .eq("admin_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (error && error.code !== "PGRST116") {
         console.error("Erro ao carregar barbearia:", error);
@@ -338,10 +338,41 @@ const Settings = () => {
             </CardContent>
           </Card>
 
-          <Button onClick={handleSave} disabled={saving} size="lg" className="w-full md:w-auto">
-            <Save className="h-4 w-4 mr-2" />
-            {saving ? "Salvando..." : "Salvar Configurações"}
-          </Button>
+          <div className="flex flex-col md:flex-row gap-4">
+            <Button onClick={handleSave} disabled={saving} size="lg" className="flex-1 md:flex-none">
+              <Save className="h-4 w-4 mr-2" />
+              {saving ? "Salvando..." : "Salvar Configurações"}
+            </Button>
+            
+            {barbearia && formData.slug && (
+              <Card className="flex-1">
+                <CardContent className="pt-6">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Link Público para Agendamento</Label>
+                    <div className="flex gap-2">
+                      <Input 
+                        value={`${window.location.origin}/barbearia/${formData.slug}`} 
+                        readOnly 
+                        className="flex-1"
+                      />
+                      <Button 
+                        onClick={() => {
+                          navigator.clipboard.writeText(`${window.location.origin}/barbearia/${formData.slug}`);
+                          toast.success("Link copiado!");
+                        }}
+                        variant="secondary"
+                      >
+                        Copiar Link
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Compartilhe este link com seus clientes para que eles possam agendar horários
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
       </div>
     </div>

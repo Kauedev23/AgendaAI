@@ -30,7 +30,7 @@ const Reports = () => {
         .from("barbearias")
         .select("*")
         .eq("admin_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (!barbeariasData) {
         toast.error("Configure sua barbearia primeiro");
