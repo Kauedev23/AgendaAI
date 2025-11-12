@@ -41,14 +41,21 @@ const Settings = () => {
         return;
       }
 
-      // Verificar se é admin
+      // Verificar perfil e permitir onboarding se não for admin ainda
       const { data: profileData } = await supabase
         .from("profiles")
         .select("tipo")
         .eq("id", user.id)
         .single();
 
-      if (profileData?.tipo !== 'admin') {
+      // Verificar se já existe barbearia do usuário
+      const { data: existingBarbearia } = await supabase
+        .from("barbearias")
+        .select("id")
+        .eq("admin_id", user.id)
+        .maybeSingle();
+
+      if (profileData?.tipo !== 'admin' && existingBarbearia) {
         toast.error("Acesso negado. Apenas administradores podem acessar esta página.");
         navigate("/");
         return;
@@ -119,6 +126,13 @@ const Settings = () => {
           .insert([dataToSave]);
 
         if (error) throw error;
+
+        // Promover usuário a admin ao criar a barbearia
+        await supabase
+          .from("profiles")
+          .update({ tipo: "admin" })
+          .eq("id", user.id);
+
         toast.success("Barbearia criada com sucesso!");
       }
 

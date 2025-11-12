@@ -9,43 +9,77 @@ const Landing = () => {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    checkAuth();
+    // Listener para mudanças de autenticação e checagem inicial
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        handleRedirect(session.user);
+      }
+    });
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        handleRedirect(session.user);
+      } else {
+        setChecking(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const checkAuth = async () => {
+  const handleRedirect = async (user: any) => {
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const tipoFromUser = (user.user_metadata as any)?.tipo as ("admin" | "barbeiro" | "cliente") | undefined;
 
-      if (session?.user) {
-        const user = session.user;
-        const tipoFromUser = (user.user_metadata as any)?.tipo as ("admin" | "barbeiro" | "cliente") | undefined;
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("tipo")
+        .eq("id", user.id)
+        .maybeSingle();
 
-        const { data: profileData } = await supabase.from("profiles").select("tipo").eq("id", user.id).maybeSingle();
+      const effectiveTipo = profileData?.tipo ?? tipoFromUser;
 
-        const effectiveTipo = profileData?.tipo ?? tipoFromUser;
+      // Sincroniza divergências entre metadata e perfil
+      if (tipoFromUser && profileData && profileData.tipo !== tipoFromUser) {
+        await supabase.from("profiles").update({ tipo: tipoFromUser }).eq("id", user.id);
+      } else if (tipoFromUser && !profileData) {
+        await supabase.from("profiles").insert({
+          id: user.id,
+          email: user.email || "",
+          nome: (user.user_metadata as any)?.nome || "Usuário",
+          tipo: tipoFromUser,
+        });
+      }
 
-        // Sincroniza divergências entre metadata e perfil
-        if (tipoFromUser && profileData && profileData.tipo !== tipoFromUser) {
-          await supabase.from("profiles").update({ tipo: tipoFromUser }).eq("id", user.id);
-        } else if (tipoFromUser && !profileData) {
-          await supabase.from("profiles").insert({
-            id: user.id,
-            email: user.email || "",
-            nome: (user.user_metadata as any)?.nome || "Usuário",
-            tipo: tipoFromUser,
-          });
+      if (effectiveTipo === "barbeiro") {
+        navigate("/barber-dashboard", { replace: true });
+        return;
+      }
+
+      if (effectiveTipo === "admin") {
+        navigate("/dashboard", { replace: true });
+        return;
+      }
+
+      // Se for cliente, verificar se já possui uma barbearia associada como admin
+      const { data: barbeariaData } = await supabase
+        .from("barbearias")
+        .select("id")
+        .eq("admin_id", user.id)
+        .maybeSingle();
+
+      if (barbeariaData) {
+        // Se já tem barbearia, direcionar ao dashboard (e sincronizar tipo se necessário)
+        if (profileData && profileData.tipo !== 'admin') {
+          await supabase.from("profiles").update({ tipo: 'admin' }).eq("id", user.id);
         }
-
-        if (effectiveTipo === "barbeiro") {
-          navigate("/barber-dashboard", { replace: true });
-        } else if (effectiveTipo === "admin") {
-          navigate("/dashboard", { replace: true });
-        }
+        navigate("/dashboard", { replace: true });
+      } else {
+        // Onboarding: levar para configurar a barbearia
+        navigate("/settings", { replace: true });
       }
     } catch (error) {
-      console.error("Erro ao verificar autenticação:", error);
+      console.error("Erro ao redirecionar usuário:", error);
     } finally {
       setChecking(false);
     }
