@@ -54,11 +54,11 @@ const Reports = () => {
 
       // Calcular estatísticas
       const totalAgendamentos = agendamentos?.length || 0;
-      const pendentes = agendamentos?.filter(a => a.status === 'pendente').length || 0;
-      const confirmados = agendamentos?.filter(a => a.status === 'confirmado').length || 0;
-      const concluidos = agendamentos?.filter(a => a.status === 'concluido').length || 0;
+      const pendentes = agendamentos?.filter((a: any) => a.status === 'pendente').length || 0;
+      const confirmados = agendamentos?.filter((a: any) => a.status === 'confirmado').length || 0;
+      const concluidos = agendamentos?.filter((a: any) => a.status === 'concluido').length || 0;
       
-      const faturamentoTotal = transacoes?.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + parseFloat(String(t.valor)), 0) || 0;
+      const faturamentoTotal = transacoes?.filter((t: any) => t.tipo === 'receita').reduce((acc: number, t: any) => acc + parseFloat(String(t.valor)), 0) || 0;
       const ticketMedio = concluidos > 0 ? faturamentoTotal / concluidos : 0;
 
       // Serviços mais populares
