@@ -78,6 +78,7 @@ serve(async (req) => {
     console.log('Usuário é admin da barbearia, criando usuário...');
 
     // Criar usuário no Supabase Auth com senha temporária
+    // O trigger handle_new_user() criará automaticamente o perfil e role
     const tempPassword = `Temp${Math.random().toString(36).slice(-8)}!`;
     
     const { data: newUser, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
@@ -100,44 +101,24 @@ serve(async (req) => {
 
     console.log('Usuário criado no Auth:', newUser.user.id);
 
-    // Criar perfil
-    const { error: profileError } = await supabaseAdmin
+    // Aguardar um pouco para garantir que o trigger execute
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Atualizar perfil com informações adicionais (telefone e barbearia_id)
+    const { error: updateError } = await supabaseAdmin
       .from('profiles')
-      .insert({
-        id: newUser.user.id,
-        nome,
-        email,
+      .update({
         telefone,
-        tipo: 'barbeiro',
         barbearia_id
-      });
+      })
+      .eq('id', newUser.user.id);
 
-    if (profileError) {
-      console.error('Erro ao criar perfil:', profileError);
-      // Tentar remover o usuário se falhar ao criar perfil
-      await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
-      return new Response(
-        JSON.stringify({ error: `Erro ao criar perfil: ${profileError.message}` }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (updateError) {
+      console.error('Erro ao atualizar perfil:', updateError);
+      // Não é crítico, continuar mesmo assim
     }
 
-    console.log('Perfil criado');
-
-    // Criar role
-    const { error: roleError } = await supabaseAdmin
-      .from('user_roles')
-      .insert({
-        user_id: newUser.user.id,
-        role: 'barbeiro'
-      });
-
-    if (roleError) {
-      console.error('Erro ao criar role:', roleError);
-      // Continuar mesmo se falhar ao criar role, pois já temos o tipo no perfil
-    }
-
-    console.log('Role criado');
+    console.log('Perfil atualizado com sucesso');
 
     // Criar registro de barbeiro
     const { error: barbeiroError } = await supabaseAdmin
