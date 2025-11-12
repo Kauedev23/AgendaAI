@@ -18,7 +18,7 @@ const Landing = () => {
       
       if (session?.user) {
         const user = session.user;
-        const tipoFromUser = (user.user_metadata as any)?.tipo as string | undefined;
+        const tipoFromUser = (user.user_metadata as any)?.tipo as ('admin' | 'barbeiro' | 'cliente') | undefined;
 
         const { data: profileData } = await supabase
           .from("profiles")
@@ -37,7 +37,12 @@ const Landing = () => {
         } else if (tipoFromUser && !profileData) {
           await supabase
             .from("profiles")
-            .upsert({ id: user.id, email: user.email, nome: (user.user_metadata as any)?.nome, tipo: tipoFromUser });
+            .insert({ 
+              id: user.id, 
+              email: user.email || '', 
+              nome: (user.user_metadata as any)?.nome || 'Usuário', 
+              tipo: tipoFromUser 
+            });
         }
 
         if (effectiveTipo === 'barbeiro') {
