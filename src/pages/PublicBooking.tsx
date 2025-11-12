@@ -220,78 +220,34 @@ const PublicBooking = () => {
       return;
     }
 
+    if (!barbearia || !selectedBarbeiro || !selectedServico || !selectedDate || !selectedTime) {
+      toast.error("Selecione barbeiro, serviço, data e horário");
+      return;
+    }
+
     try {
-      // Criar ou buscar cliente
-      let clienteId = null;
-      const { data: existingClient } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("email", clientData.email)
-        .maybeSingle();
-
-      if (existingClient) {
-        clienteId = existingClient.id;
-      } else {
-        // Criar novo usuário cliente
-        const tempPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-10);
-        const { data: authData, error: authError } = await supabase.auth.signUp({
+      const { data: resp, error: fnError } = await supabase.functions.invoke('public-booking', {
+        body: {
+          barbeariaId: barbearia.id,
+          barbeiroId: selectedBarbeiro,
+          servicoId: selectedServico,
+          date: selectedDate,
+          time: selectedTime,
+          nome: clientData.nome,
           email: clientData.email,
-          password: tempPassword,
-          options: {
-            data: {
-              nome: clientData.nome,
-              tipo: "cliente"
-            },
-            emailRedirectTo: `${window.location.origin}/`
-          }
-        });
-
-        if (authError) {
-          console.error("Auth error:", authError);
-          // Se usuário já existe, buscar ID
-          const { data: userData } = await supabase
-            .from("profiles")
-            .select("id")
-            .eq("email", clientData.email)
-            .maybeSingle();
-          clienteId = userData?.id;
-        } else {
-          clienteId = authData.user?.id;
+          telefone: clientData.telefone,
+          observacoes: clientData.observacoes,
         }
-      }
+      });
 
-      if (!clienteId) {
-        toast.error("Erro ao processar cliente");
-        return;
-      }
-
-      // Atualizar telefone se fornecido
-      if (clientData.telefone) {
-        await supabase
-          .from("profiles")
-          .update({ telefone: clientData.telefone })
-          .eq("id", clienteId);
-      }
-
-      // Criar agendamento
-      const { error } = await supabase.from("agendamentos").insert([{
-        barbearia_id: barbearia.id,
-        barbeiro_id: selectedBarbeiro,
-        servico_id: selectedServico,
-        cliente_id: clienteId,
-        data: selectedDate,
-        hora: selectedTime,
-        observacoes: clientData.observacoes || null,
-        status: "pendente"
-      }]);
-
-      if (error) throw error;
+      if (fnError) throw fnError;
+      if (!resp?.ok) throw new Error(resp?.error || 'Falha ao criar agendamento');
 
       setBookingSuccess(true);
       toast.success("Agendamento realizado com sucesso!");
     } catch (error: any) {
       console.error("Erro:", error);
-      toast.error("Erro ao realizar agendamento");
+      toast.error(error?.message || "Erro ao realizar agendamento");
     }
   };
 
