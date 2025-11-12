@@ -169,28 +169,51 @@ const Dashboard = () => {
         {profile?.tipo === 'admin' && (
           <Card>
             <CardHeader>
-              <CardTitle>Primeiros Passos</CardTitle>
+              <CardTitle>Acesso Rápido</CardTitle>
               <CardDescription>
-                Configure sua barbearia para começar a receber agendamentos
+                Gerencie sua barbearia
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid md:grid-cols-2 gap-4">
-                <Button className="h-auto py-4 flex flex-col items-start bg-secondary hover:bg-secondary/90">
-                  <span className="font-semibold mb-1">1. Configure sua Barbearia</span>
+                <Button 
+                  className="h-auto py-4 flex flex-col items-start bg-secondary hover:bg-secondary/90"
+                  onClick={() => navigate("/settings")}
+                >
+                  <span className="font-semibold mb-1">Configurações</span>
                   <span className="text-xs text-white/80">Nome, logo e informações</span>
                 </Button>
-                <Button className="h-auto py-4 flex flex-col items-start" variant="outline">
-                  <span className="font-semibold mb-1">2. Adicione Serviços</span>
+                <Button 
+                  className="h-auto py-4 flex flex-col items-start" 
+                  variant="outline"
+                  onClick={() => navigate("/services")}
+                >
+                  <span className="font-semibold mb-1">Serviços</span>
                   <span className="text-xs text-muted-foreground">Cortes, barba e preços</span>
                 </Button>
-                <Button className="h-auto py-4 flex flex-col items-start" variant="outline">
-                  <span className="font-semibold mb-1">3. Cadastre Barbeiros</span>
+                <Button 
+                  className="h-auto py-4 flex flex-col items-start" 
+                  variant="outline"
+                  onClick={() => navigate("/barbers")}
+                >
+                  <span className="font-semibold mb-1">Barbeiros</span>
                   <span className="text-xs text-muted-foreground">Sua equipe de profissionais</span>
                 </Button>
-                <Button className="h-auto py-4 flex flex-col items-start" variant="outline">
-                  <span className="font-semibold mb-1">4. Configure Horários</span>
-                  <span className="text-xs text-muted-foreground">Dias e horários de funcionamento</span>
+                <Button 
+                  className="h-auto py-4 flex flex-col items-start" 
+                  variant="outline"
+                  onClick={() => navigate("/appointments")}
+                >
+                  <span className="font-semibold mb-1">Agendamentos</span>
+                  <span className="text-xs text-muted-foreground">Gerencie os horários</span>
+                </Button>
+                <Button 
+                  className="h-auto py-4 flex flex-col items-start" 
+                  variant="outline"
+                  onClick={() => navigate("/reports")}
+                >
+                  <span className="font-semibold mb-1">Relatórios</span>
+                  <span className="text-xs text-muted-foreground">Insights com IA</span>
                 </Button>
               </div>
             </CardContent>
