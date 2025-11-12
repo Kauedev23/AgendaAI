@@ -91,11 +91,14 @@ export type Database = {
           cor_primaria: string | null
           cor_secundaria: string | null
           created_at: string | null
+          descricao: string | null
           dias_funcionamento: string[] | null
           endereco: string | null
+          facebook: string | null
           horario_abertura: string | null
           horario_fechamento: string | null
           id: string
+          instagram: string | null
           logo_url: string | null
           nome: string
           slug: string
@@ -107,11 +110,14 @@ export type Database = {
           cor_primaria?: string | null
           cor_secundaria?: string | null
           created_at?: string | null
+          descricao?: string | null
           dias_funcionamento?: string[] | null
           endereco?: string | null
+          facebook?: string | null
           horario_abertura?: string | null
           horario_fechamento?: string | null
           id?: string
+          instagram?: string | null
           logo_url?: string | null
           nome: string
           slug: string
@@ -123,11 +129,14 @@ export type Database = {
           cor_primaria?: string | null
           cor_secundaria?: string | null
           created_at?: string | null
+          descricao?: string | null
           dias_funcionamento?: string[] | null
           endereco?: string | null
+          facebook?: string | null
           horario_abertura?: string | null
           horario_fechamento?: string | null
           id?: string
+          instagram?: string | null
           logo_url?: string | null
           nome?: string
           slug?: string
@@ -269,14 +278,90 @@ export type Database = {
           },
         ]
       }
+      transacoes: {
+        Row: {
+          agendamento_id: string | null
+          barbearia_id: string
+          created_at: string | null
+          data: string | null
+          descricao: string | null
+          id: string
+          tipo: string
+          valor: number
+        }
+        Insert: {
+          agendamento_id?: string | null
+          barbearia_id: string
+          created_at?: string | null
+          data?: string | null
+          descricao?: string | null
+          id?: string
+          tipo: string
+          valor: number
+        }
+        Update: {
+          agendamento_id?: string | null
+          barbearia_id?: string
+          created_at?: string | null
+          data?: string | null
+          descricao?: string | null
+          id?: string
+          tipo?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transacoes_agendamento_id_fkey"
+            columns: ["agendamento_id"]
+            isOneToOne: false
+            referencedRelation: "agendamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transacoes_barbearia_id_fkey"
+            columns: ["barbearia_id"]
+            isOneToOne: false
+            referencedRelation: "barbearias"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
+      app_role: "admin" | "barbeiro" | "cliente"
       appointment_status: "pendente" | "confirmado" | "cancelado" | "concluido"
       user_type: "admin" | "barbeiro" | "cliente"
     }
@@ -406,6 +491,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["admin", "barbeiro", "cliente"],
       appointment_status: ["pendente", "confirmado", "cancelado", "concluido"],
       user_type: ["admin", "barbeiro", "cliente"],
     },
