@@ -39,7 +39,7 @@ const PublicBooking = () => {
     if (selectedBarbeiro && selectedDate) {
       loadAvailableTimes();
     }
-  }, [selectedBarbeiro, selectedDate]);
+  }, [selectedBarbeiro, selectedDate, selectedServico]);
 
   // Aplicar cores personalizadas da barbearia
   useEffect(() => {
@@ -144,12 +144,24 @@ const PublicBooking = () => {
     }
 
     try {
-      const start = barbearia.horario_abertura || "09:00";
-      const end = barbearia.horario_fechamento || "19:00";
-      
+      // Normaliza tempo vindo do banco ("HH:mm:ss" -> "HH:mm")
+      const normalize = (t: string | null | undefined) => {
+        if (!t) return null;
+        return t.length >= 5 ? t.slice(0, 5) : null;
+      };
+
+      const startStr = normalize(barbearia.horario_abertura as string) || "09:00";
+      const endStr = normalize(barbearia.horario_fechamento as string) || "19:00";
+
       const times: string[] = [];
-      let current = parse(start, "HH:mm", new Date());
-      const endTime = parse(end, "HH:mm", new Date());
+      let current = parse(startStr, "HH:mm", new Date());
+      const endTime = parse(endStr, "HH:mm", new Date());
+
+      // Se parse falhar, evita loop infinito
+      if (isNaN(current.getTime()) || isNaN(endTime.getTime())) {
+        setAvailableTimes([]);
+        return;
+      }
 
       while (current < endTime) {
         times.push(format(current, "HH:mm"));
@@ -166,11 +178,11 @@ const PublicBooking = () => {
 
       if (agendamentosError) {
         console.error("Erro ao buscar agendamentos:", agendamentosError);
-        setAvailableTimes(times); // Mostrar todos os horários em caso de erro
+        setAvailableTimes(times); // em caso de erro, mostrar todos
         return;
       }
 
-      // Mapear horários ocupados considerando duração do serviço
+      // Mapear horários ocupados considerando duração do serviço dos agendamentos existentes
       const occupiedSlots = new Set<string>();
       
       if (agendamentos && agendamentos.length > 0) {
@@ -182,8 +194,8 @@ const PublicBooking = () => {
             .maybeSingle();
           
           if (servico) {
-            const startTime = parse(ag.hora, "HH:mm", new Date());
-            const slots = Math.ceil(servico.duracao / 30); // quantos blocos de 30min
+            const startTime = parse(ag.hora.slice(0,5), "HH:mm", new Date());
+            const slots = Math.ceil((servico.duracao as number) / 30);
             
             for (let i = 0; i < slots; i++) {
               const blockedTime = new Date(startTime.getTime() + i * 30 * 60000);
