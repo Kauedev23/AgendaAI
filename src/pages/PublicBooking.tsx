@@ -366,20 +366,49 @@ const PublicBooking = () => {
                 <CardTitle>Escolha o Barbeiro</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid md:grid-cols-2 gap-4">
-                  {barbeiros.map(barbeiro => (
-                    <Card
-                      key={barbeiro.id}
-                      className={`cursor-pointer transition-all ${selectedBarbeiro === barbeiro.id ? 'ring-2 ring-secondary' : ''}`}
-                      onClick={() => setSelectedBarbeiro(barbeiro.id)}
-                    >
-                      <CardContent className="pt-6">
-                        <p className="font-semibold">{barbeiro.profiles?.nome}</p>
-                        {barbeiro.bio && <p className="text-sm text-muted-foreground mt-1">{barbeiro.bio}</p>}
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                {barbeiros.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Scissors className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>Nenhum barbeiro disponível no momento</p>
+                  </div>
+                ) : (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {barbeiros.map(barbeiro => (
+                      <Card
+                        key={barbeiro.id}
+                        className={`cursor-pointer transition-all border-2 hover:shadow-md ${
+                          selectedBarbeiro === barbeiro.id 
+                            ? 'ring-2 ring-secondary border-secondary bg-secondary/5' 
+                            : 'border-border hover:border-secondary/50'
+                        }`}
+                        onClick={() => setSelectedBarbeiro(barbeiro.id)}
+                      >
+                        <CardContent className="pt-6">
+                          <div className="flex items-center gap-3 mb-2">
+                            <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center">
+                              <Scissors className="h-5 w-5 text-secondary" />
+                            </div>
+                            <p className="font-semibold text-lg text-primary">
+                              {barbeiro.profiles?.nome || 'Barbeiro'}
+                            </p>
+                          </div>
+                          {barbeiro.bio && (
+                            <p className="text-sm text-muted-foreground mt-2">{barbeiro.bio}</p>
+                          )}
+                          {barbeiro.especialidades && barbeiro.especialidades.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-3">
+                              {barbeiro.especialidades.map((esp: string, idx: number) => (
+                                <span key={idx} className="text-xs bg-muted px-2 py-1 rounded-full">
+                                  {esp}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -388,21 +417,40 @@ const PublicBooking = () => {
                 <CardTitle>Escolha o Serviço</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid md:grid-cols-2 gap-4">
-                  {servicos.map(servico => (
-                    <Card
-                      key={servico.id}
-                      className={`cursor-pointer transition-all ${selectedServico === servico.id ? 'ring-2 ring-secondary' : ''}`}
-                      onClick={() => setSelectedServico(servico.id)}
-                    >
-                      <CardContent className="pt-6">
-                        <p className="font-semibold">{servico.nome}</p>
-                        <p className="text-secondary font-bold mt-2">R$ {servico.preco.toFixed(2)}</p>
-                        <p className="text-sm text-muted-foreground">{servico.duracao} minutos</p>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                {servicos.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Scissors className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>Nenhum serviço disponível no momento</p>
+                  </div>
+                ) : (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {servicos.map(servico => (
+                      <Card
+                        key={servico.id}
+                        className={`cursor-pointer transition-all border-2 hover:shadow-md ${
+                          selectedServico === servico.id 
+                            ? 'ring-2 ring-secondary border-secondary bg-secondary/5' 
+                            : 'border-border hover:border-secondary/50'
+                        }`}
+                        onClick={() => setSelectedServico(servico.id)}
+                      >
+                        <CardContent className="pt-6">
+                          <p className="font-semibold text-lg text-primary mb-2">{servico.nome}</p>
+                          <div className="flex items-center justify-between">
+                            <p className="text-secondary font-bold text-xl">R$ {servico.preco.toFixed(2)}</p>
+                            <p className="text-sm text-muted-foreground flex items-center gap-1">
+                              <Clock className="h-4 w-4" />
+                              {servico.duracao} min
+                            </p>
+                          </div>
+                          {servico.descricao && (
+                            <p className="text-sm text-muted-foreground mt-2">{servico.descricao}</p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
