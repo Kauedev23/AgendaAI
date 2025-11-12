@@ -1,8 +1,51 @@
 import { Button } from "@/components/ui/button";
 import { Calendar, Scissors, Users, Clock, TrendingUp, Shield } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 const Landing = () => {
+  const navigate = useNavigate();
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user) {
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("tipo")
+          .eq("id", session.user.id)
+          .maybeSingle();
+
+        if (profileData?.tipo === 'barbeiro') {
+          navigate("/barber-dashboard", { replace: true });
+        } else if (profileData?.tipo === 'admin') {
+          navigate("/dashboard", { replace: true });
+        }
+      }
+    } catch (error) {
+      console.error("Erro ao verificar autenticação:", error);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  if (checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen">
       {/* Hero Section */}

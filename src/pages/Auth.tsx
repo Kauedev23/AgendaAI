@@ -61,25 +61,35 @@ const Auth = () => {
 
       if (error) throw error;
 
+      toast.success("Login realizado com sucesso!");
+      
+      // Aguardar um pouco para garantir que a sessão foi estabelecida
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       // Buscar perfil do usuário para redirecionar corretamente
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: profileData } = await supabase
+        const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select("tipo")
           .eq("id", user.id)
-          .single();
+          .maybeSingle();
 
-        toast.success("Login realizado com sucesso!");
-        
+        console.log("Profile data:", profileData); // Debug temporário
+
+        if (profileError) {
+          console.error("Erro ao buscar perfil:", profileError);
+        }
+
         // Redirecionar baseado no tipo de usuário
         if (profileData?.tipo === 'barbeiro') {
-          navigate("/barber-dashboard");
-        } else if (profileData?.tipo === 'admin') {
-          navigate("/dashboard");
+          navigate("/barber-dashboard", { replace: true });
         } else {
-          navigate("/");
+          // Admin ou qualquer outro tipo vai para dashboard
+          navigate("/dashboard", { replace: true });
         }
+      } else {
+        navigate("/dashboard", { replace: true });
       }
     } catch (error: any) {
       toast.error(error.message || "Erro ao fazer login");
