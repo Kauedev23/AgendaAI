@@ -21,7 +21,6 @@ const Auth = () => {
     const nome = formData.get("nome") as string;
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
-    const tipo = formData.get("tipo") as string;
 
     try {
       const { error } = await supabase.auth.signUp({
@@ -30,7 +29,7 @@ const Auth = () => {
         options: {
           data: {
             nome,
-            tipo,
+            tipo: 'cliente', // Always cliente for public signup - security fix
           },
           emailRedirectTo: `${window.location.origin}/`,
         },
@@ -38,8 +37,7 @@ const Auth = () => {
 
       if (error) throw error;
 
-      toast.success("Conta criada com sucesso! Redirecionando...");
-      setTimeout(() => navigate("/dashboard"), 1500);
+      toast.success("Conta criada! Verifique seu email para confirmar.");
     } catch (error: any) {
       toast.error(error.message || "Erro ao criar conta");
     } finally {
@@ -161,20 +159,6 @@ const Auth = () => {
                       required
                       minLength={6}
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-tipo">Tipo de Conta</Label>
-                    <select
-                      id="signup-tipo"
-                      name="tipo"
-                      className="w-full px-3 py-2 border border-input rounded-md bg-background"
-                      required
-                      defaultValue="admin"
-                    >
-                      <option value="admin">Dono de Barbearia</option>
-                      <option value="barbeiro">Barbeiro</option>
-                      <option value="cliente">Cliente</option>
-                    </select>
                   </div>
                   <Button
                     type="submit"
