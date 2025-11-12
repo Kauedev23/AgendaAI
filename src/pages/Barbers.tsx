@@ -74,52 +74,64 @@ const Barbers = () => {
       return;
     }
 
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      toast.error("Email inválido");
+      return;
+    }
+
     try {
-      // Criar ou atualizar perfil do barbeiro
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: Math.random().toString(36).slice(-8), // senha temporária
-        options: {
-          data: {
-            nome: formData.nome,
-            tipo: "barbeiro"
-          }
-        }
-      });
-
-      if (authError && !authError.message.includes("already registered")) {
-        throw authError;
-      }
-
-      const userId = authData.user?.id;
-      if (!userId) {
-        toast.error("Erro ao criar usuário");
-        return;
-      }
-
-      const barbeiroData = {
-        user_id: userId,
-        barbearia_id: barbearia.id,
-        bio: formData.bio || null,
-        especialidades: formData.especialidades.length > 0 ? formData.especialidades : null,
-        ativo: true
-      };
+      setLoading(true);
 
       if (editingBarbeiro) {
+        // Atualizar barbeiro existente
+        const updateData: any = {
+          bio: formData.bio || null,
+          especialidades: formData.especialidades.length > 0 ? formData.especialidades : null
+        };
+
         const { error } = await supabase
           .from("barbeiros")
-          .update(barbeiroData)
+          .update(updateData)
           .eq("id", editingBarbeiro.id);
 
         if (error) throw error;
+
+        // Atualizar profile se houver telefone
+        if (formData.telefone) {
+          await supabase
+            .from("profiles")
+            .update({ telefone: formData.telefone })
+            .eq("id", editingBarbeiro.user_id);
+        }
+
         toast.success("Barbeiro atualizado!");
       } else {
-        const { error } = await supabase
-          .from("barbeiros")
-          .insert([barbeiroData]);
+        // Criar novo barbeiro usando Edge Function
+        const { data, error } = await supabase.functions.invoke('create-barber-user', {
+          body: {
+            email: formData.email,
+            nome: formData.nome,
+            telefone: formData.telefone,
+            barbearia_id: barbearia.id,
+            bio: formData.bio,
+            especialidades: formData.especialidades.length > 0 ? formData.especialidades : null
+          }
+        });
 
-        if (error) throw error;
-        toast.success("Barbeiro cadastrado! Email enviado com instruções de acesso.");
+        if (error) {
+          console.error('Erro ao criar barbeiro:', error);
+          throw new Error(error.message || 'Erro ao criar barbeiro');
+        }
+
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        toast.success(`Barbeiro cadastrado! Senha temporária: ${data.temp_password}`, {
+          duration: 10000
+        });
       }
 
       setDialogOpen(false);
@@ -128,6 +140,8 @@ const Barbers = () => {
     } catch (error: any) {
       console.error("Erro:", error);
       toast.error(error.message || "Erro ao salvar barbeiro");
+    } finally {
+      setLoading(false);
     }
   };
 
