@@ -138,38 +138,48 @@ const PublicBooking = () => {
   };
 
   const loadAvailableTimes = async () => {
-    if (!barbearia || !selectedDate) return;
-
-    const start = barbearia.horario_abertura || "09:00";
-    const end = barbearia.horario_fechamento || "19:00";
-    
-    const times: string[] = [];
-    let current = parse(start, "HH:mm", new Date());
-    const endTime = parse(end, "HH:mm", new Date());
-
-    while (current < endTime) {
-      times.push(format(current, "HH:mm"));
-      current = new Date(current.getTime() + 30 * 60000); // +30 min
+    if (!barbearia || !selectedDate || !selectedBarbeiro) {
+      setAvailableTimes([]);
+      return;
     }
 
+    try {
+      const start = barbearia.horario_abertura || "09:00";
+      const end = barbearia.horario_fechamento || "19:00";
+      
+      const times: string[] = [];
+      let current = parse(start, "HH:mm", new Date());
+      const endTime = parse(end, "HH:mm", new Date());
+
+      while (current < endTime) {
+        times.push(format(current, "HH:mm"));
+        current = new Date(current.getTime() + 30 * 60000); // +30 min
+      }
+
       // Buscar horários já ocupados
-      const { data: agendamentos } = await supabase
+      const { data: agendamentos, error: agendamentosError } = await supabase
         .from("agendamentos")
         .select("hora, servico_id")
         .eq("barbeiro_id", selectedBarbeiro)
         .eq("data", selectedDate)
         .in("status", ["pendente", "confirmado"]);
 
+      if (agendamentosError) {
+        console.error("Erro ao buscar agendamentos:", agendamentosError);
+        setAvailableTimes(times); // Mostrar todos os horários em caso de erro
+        return;
+      }
+
       // Mapear horários ocupados considerando duração do serviço
       const occupiedSlots = new Set<string>();
       
-      if (agendamentos) {
+      if (agendamentos && agendamentos.length > 0) {
         for (const ag of agendamentos) {
           const { data: servico } = await supabase
             .from("servicos")
             .select("duracao")
             .eq("id", ag.servico_id)
-            .single();
+            .maybeSingle();
           
           if (servico) {
             const startTime = parse(ag.hora, "HH:mm", new Date());
@@ -185,6 +195,11 @@ const PublicBooking = () => {
 
       const available = times.filter(time => !occupiedSlots.has(time));
       setAvailableTimes(available);
+    } catch (error) {
+      console.error("Erro ao carregar horários:", error);
+      toast.error("Erro ao carregar horários disponíveis");
+      setAvailableTimes([]);
+    }
   };
 
   const handleBooking = async () => {
@@ -268,9 +283,9 @@ const PublicBooking = () => {
     }
   };
 
-  const getNext7Days = () => {
+  const getNext14Days = () => {
     const days = [];
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 14; i++) {
       days.push(addDays(new Date(), i));
     }
     return days;
@@ -483,7 +498,7 @@ const PublicBooking = () => {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {getNext7Days().map(day => (
+                  {getNext14Days().map(day => (
                     <Button
                       key={day.toISOString()}
                       variant={selectedDate === format(day, "yyyy-MM-dd") ? "default" : "outline"}
