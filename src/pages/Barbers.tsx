@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Plus, Scissors, Trash2, Edit } from "lucide-react";
+import { ArrowLeft, Plus, Scissors, Trash2, Edit, Key } from "lucide-react";
 import { toast } from "sonner";
 
 const Barbers = () => {
@@ -16,7 +16,10 @@ const Barbers = () => {
   const [barbeiros, setBarbeiros] = useState<any[]>([]);
   const [barbearia, setBarbearia] = useState<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [editingBarbeiro, setEditingBarbeiro] = useState<any>(null);
+  const [selectedBarbeiroForPassword, setSelectedBarbeiroForPassword] = useState<any>(null);
+  const [newPassword, setNewPassword] = useState("");
   const [formData, setFormData] = useState({
     nome: "",
     email: "",
@@ -188,6 +191,43 @@ const Barbers = () => {
     setDialogOpen(true);
   };
 
+  const handleChangePassword = async () => {
+    if (!newPassword || newPassword.length < 6) {
+      toast.error("A senha deve ter no mínimo 6 caracteres");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const { data, error } = await supabase.functions.invoke('change-barber-password', {
+        body: {
+          barbeiro_user_id: selectedBarbeiroForPassword.user_id,
+          new_password: newPassword
+        }
+      });
+
+      if (error) {
+        console.error('Erro ao alterar senha:', error);
+        throw new Error(error.message || 'Erro ao alterar senha');
+      }
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      toast.success("Senha alterada com sucesso!");
+      setPasswordDialogOpen(false);
+      setNewPassword("");
+      setSelectedBarbeiroForPassword(null);
+    } catch (error: any) {
+      console.error("Erro:", error);
+      toast.error(error.message || "Erro ao alterar senha");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       nome: "",
@@ -305,6 +345,16 @@ const Barbers = () => {
                     <Button variant="ghost" size="icon" onClick={() => handleEdit(barbeiro)}>
                       <Edit className="h-4 w-4" />
                     </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => {
+                        setSelectedBarbeiroForPassword(barbeiro);
+                        setPasswordDialogOpen(true);
+                      }}
+                    >
+                      <Key className="h-4 w-4" />
+                    </Button>
                     <Button variant="ghost" size="icon" onClick={() => handleDelete(barbeiro.id)}>
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
@@ -328,6 +378,38 @@ const Barbers = () => {
             ))}
           </div>
         )}
+
+        <Dialog open={passwordDialogOpen} onOpenChange={(open) => {
+          setPasswordDialogOpen(open);
+          if (!open) {
+            setNewPassword("");
+            setSelectedBarbeiroForPassword(null);
+          }
+        }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Alterar Senha</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <p className="text-sm text-muted-foreground">
+                Alterando senha de: <strong>{selectedBarbeiroForPassword?.profiles?.nome}</strong>
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="new-password">Nova Senha *</Label>
+                <Input
+                  id="new-password"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Mínimo 6 caracteres"
+                />
+              </div>
+              <Button onClick={handleChangePassword} className="w-full" disabled={loading}>
+                {loading ? "Alterando..." : "Alterar Senha"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
