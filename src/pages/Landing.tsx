@@ -10,7 +10,9 @@ const Landing = () => {
 
   useEffect(() => {
     // Listener para mudanças de autenticação e checagem inicial
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         handleRedirect(session.user);
       }
@@ -31,11 +33,7 @@ const Landing = () => {
     try {
       const tipoFromUser = (user.user_metadata as any)?.tipo as ("admin" | "barbeiro" | "cliente") | undefined;
 
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("tipo")
-        .eq("id", user.id)
-        .maybeSingle();
+      const { data: profileData } = await supabase.from("profiles").select("tipo").eq("id", user.id).maybeSingle();
 
       const effectiveTipo = profileData?.tipo ?? tipoFromUser;
 
@@ -70,8 +68,8 @@ const Landing = () => {
 
       if (barbeariaData) {
         // Se já tem barbearia, direcionar ao dashboard (e sincronizar tipo se necessário)
-        if (profileData && profileData.tipo !== 'admin') {
-          await supabase.from("profiles").update({ tipo: 'admin' }).eq("id", user.id);
+        if (profileData && profileData.tipo !== "admin") {
+          await supabase.from("profiles").update({ tipo: "admin" }).eq("id", user.id);
         }
         navigate("/dashboard", { replace: true });
       } else {
@@ -165,7 +163,7 @@ const Landing = () => {
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold text-primary mb-4">Tudo que você precisa em um só lugar</h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Sistema completo e profissional para gerenciar sua barbearia
+              Sistema completo e profissional para gerenciar sua empresa
             </p>
           </div>
 
@@ -178,7 +176,7 @@ const Landing = () => {
               },
               {
                 icon: Users,
-                title: "Gestão de Barbeiros",
+                title: "Gestão de Funcionários",
                 description: "Controle completo da equipe, horários e disponibilidade",
               },
               {
@@ -199,7 +197,7 @@ const Landing = () => {
               {
                 icon: Scissors,
                 title: "Multi-tenant",
-                description: "Cada barbearia com seu próprio espaço e identidade",
+                description: "Cada Empresa com seu próprio espaço e identidade",
               },
             ].map((feature, index) => (
               <div key={index} className="p-8 rounded-2xl border border-border bg-card card-hover">
@@ -219,9 +217,9 @@ const Landing = () => {
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDE4YzMuMzEzIDAgNiAyLjY4NiA2IDZzLTIuNjg3IDYtNiA2LTYtMi42ODYtNi02IDIuNjg3LTYgNi02ek0yNCA2YzMuMzEzIDAgNiAyLjY4NiA2IDZzLTIuNjg3IDYtNiA2LTYtMi42ODYtNi02IDIuNjg3LTYgNi02eiIvPjwvZz48L2c+PC9zdmc+')] opacity-10"></div>
 
         <div className="container mx-auto px-6 text-center relative z-10">
-          <h2 className="text-4xl md:text-5xl font-bold mb-6">Pronto para Modernizar sua Barbearia?</h2>
+          <h2 className="text-4xl md:text-5xl font-bold mb-6">Pronto para Modernizar sua Empresa?</h2>
           <p className="text-xl mb-8 text-white/90 max-w-2xl mx-auto">
-            Comece gratuitamente hoje e veja como o BarberTime pode transformar seu negócio
+            Comece gratuitamente hoje e veja como o AgendaAI pode transformar seu negócio
           </p>
           <Link to="/auth">
             <Button size="lg" className="bg-secondary hover:bg-secondary/90 text-white text-lg px-8 py-6 shadow-xl">
@@ -238,7 +236,9 @@ const Landing = () => {
             <Scissors className="h-6 w-6 text-secondary" />
             <span className="text-xl font-bold">BarberTime</span>
           </div>
-          <p className="text-white/70">© 2024 BarberTime. Sistema profissional de agendamento para barbearias.</p>
+          <p className="text-white/70">
+            © 2024 AgendaAI. Sistema profissional de agendamento para pequenos e grandes negócios.
+          </p>
         </div>
       </footer>
     </div>
