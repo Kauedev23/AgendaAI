@@ -103,6 +103,7 @@ export type Database = {
           nome: string
           slug: string
           telefone: string | null
+          tipo_comercio: string | null
           updated_at: string | null
         }
         Insert: {
@@ -122,6 +123,7 @@ export type Database = {
           nome: string
           slug: string
           telefone?: string | null
+          tipo_comercio?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -141,6 +143,7 @@ export type Database = {
           nome?: string
           slug?: string
           telefone?: string | null
+          tipo_comercio?: string | null
           updated_at?: string | null
         }
         Relationships: []

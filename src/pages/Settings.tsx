@@ -26,7 +26,8 @@ const Settings = () => {
     cor_secundaria: "#dc2626",
     horario_abertura: "09:00",
     horario_fechamento: "19:00",
-    dias_funcionamento: ["segunda", "terca", "quarta", "quinta", "sexta", "sabado"]
+    dias_funcionamento: ["segunda", "terca", "quarta", "quinta", "sexta", "sabado"],
+    tipo_comercio: "barbearia"
   });
 
   useEffect(() => {
@@ -86,7 +87,8 @@ const Settings = () => {
           cor_secundaria: data.cor_secundaria || "#dc2626",
           horario_abertura: data.horario_abertura || "09:00",
           horario_fechamento: data.horario_fechamento || "19:00",
-          dias_funcionamento: data.dias_funcionamento || ["segunda", "terca", "quarta", "quinta", "sexta", "sabado"]
+          dias_funcionamento: data.dias_funcionamento || ["segunda", "terca", "quarta", "quinta", "sexta", "sabado"],
+          tipo_comercio: (data as any).tipo_comercio || "barbearia"
         });
       }
     } catch (error) {
@@ -121,9 +123,11 @@ const Settings = () => {
         if (error) throw error;
         toast.success("Configurações atualizadas!");
       } else {
-        const { error } = await supabase
+        const { data: newBarbearia, error } = await supabase
           .from("barbearias")
-          .insert([dataToSave]);
+          .insert([dataToSave])
+          .select()
+          .single();
 
         if (error) throw error;
 
@@ -133,7 +137,23 @@ const Settings = () => {
           .update({ tipo: "admin" })
           .eq("id", user.id);
 
-        toast.success("Barbearia criada com sucesso!");
+        // Criar serviços padrão baseados no tipo de comércio
+        if (newBarbearia) {
+          const { getDefaultServices } = await import("@/utils/defaultServices");
+          const defaultServices = getDefaultServices(formData.tipo_comercio);
+          
+          const servicosToInsert = defaultServices.map(servico => ({
+            ...servico,
+            barbearia_id: newBarbearia.id,
+            ativo: true
+          }));
+
+          await supabase
+            .from("servicos")
+            .insert(servicosToInsert);
+        }
+
+        toast.success("Negócio criado com sucesso! Serviços padrão foram adicionados.");
       }
 
       loadBarbearia();
@@ -184,25 +204,45 @@ const Settings = () => {
         </Button>
 
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-primary mb-2">Configurações da Barbearia</h1>
-          <p className="text-muted-foreground">Configure os dados e aparência da sua barbearia</p>
+          <h1 className="text-3xl font-bold text-primary mb-2">Configurações do Negócio - Agenda AI</h1>
+          <p className="text-muted-foreground">Configure os dados e aparência do seu negócio</p>
         </div>
 
         <div className="grid gap-6 max-w-4xl">
           <Card>
             <CardHeader>
               <CardTitle>Informações Básicas</CardTitle>
-              <CardDescription>Dados principais da barbearia</CardDescription>
+              <CardDescription>Dados principais do negócio</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="tipo_comercio">Tipo de Comércio *</Label>
+                <select
+                  id="tipo_comercio"
+                  value={formData.tipo_comercio}
+                  onChange={(e) => setFormData({ ...formData, tipo_comercio: e.target.value })}
+                  className="w-full px-3 py-2 border border-input bg-background rounded-md"
+                >
+                  <option value="barbearia">Barbearia</option>
+                  <option value="salao">Salão de Beleza</option>
+                  <option value="tatuagem">Estúdio de Tatuagem</option>
+                  <option value="spa">Massoterapia / Spa</option>
+                  <option value="estetica">Clínica Estética</option>
+                  <option value="consultorio">Consultório</option>
+                  <option value="personal">Personal Trainer</option>
+                  <option value="oficina">Oficina / Serviços Especializados</option>
+                  <option value="outro">Outro</option>
+                </select>
+              </div>
+
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="nome">Nome da Barbearia *</Label>
+                  <Label htmlFor="nome">Nome do Negócio *</Label>
                   <Input
                     id="nome"
                     value={formData.nome}
                     onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                    placeholder="Ex: Barbearia do João"
+                    placeholder="Ex: Studio Premium"
                   />
                 </div>
                 <div className="space-y-2">
@@ -214,7 +254,7 @@ const Settings = () => {
                     placeholder="Ex: barbearia-joao"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Sua página: /barbearia/{formData.slug || "seu-slug"}
+                    Sua página: /{formData.slug || "seu-slug"}
                   </p>
                 </div>
               </div>
@@ -246,7 +286,7 @@ const Settings = () => {
                   id="descricao"
                   value={formData.descricao}
                   onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                  placeholder="Conte um pouco sobre sua barbearia..."
+                  placeholder="Conte um pouco sobre seu negócio..."
                   rows={3}
                 />
               </div>
@@ -258,7 +298,7 @@ const Settings = () => {
                     id="instagram"
                     value={formData.instagram}
                     onChange={(e) => setFormData({ ...formData, instagram: e.target.value })}
-                    placeholder="@suabarbearia"
+                    placeholder="@seunegocio"
                   />
                 </div>
                 <div className="space-y-2">
@@ -267,7 +307,7 @@ const Settings = () => {
                     id="facebook"
                     value={formData.facebook}
                     onChange={(e) => setFormData({ ...formData, facebook: e.target.value })}
-                    placeholder="facebook.com/suabarbearia"
+                    placeholder="facebook.com/seunegocio"
                   />
                 </div>
               </div>
@@ -323,7 +363,7 @@ const Settings = () => {
           <Card>
             <CardHeader>
               <CardTitle>Personalização Visual</CardTitle>
-              <CardDescription>Escolha as cores do tema da sua barbearia</CardDescription>
+              <CardDescription>Escolha as cores do tema do seu negócio</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid md:grid-cols-2 gap-4">
@@ -378,13 +418,13 @@ const Settings = () => {
                     <Label className="text-sm font-medium">Link Público para Agendamento</Label>
                     <div className="flex gap-2">
                       <Input 
-                        value={`${window.location.origin}/barbearia/${formData.slug}`} 
+                        value={`${window.location.origin}/${formData.slug}`} 
                         readOnly 
                         className="flex-1"
                       />
                       <Button 
                         onClick={() => {
-                          navigator.clipboard.writeText(`${window.location.origin}/barbearia/${formData.slug}`);
+                          navigator.clipboard.writeText(`${window.location.origin}/${formData.slug}`);
                           toast.success("Link copiado!");
                         }}
                         variant="secondary"
