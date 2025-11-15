@@ -29,7 +29,7 @@ const Auth = () => {
         options: {
           data: {
             nome,
-            tipo: 'cliente', // Always cliente for public signup - security fix
+            tipo: "cliente", // Always cliente for public signup - security fix
           },
           emailRedirectTo: `${window.location.origin}/`,
         },
@@ -62,14 +62,16 @@ const Auth = () => {
       if (error) throw error;
 
       toast.success("Login realizado com sucesso!");
-      
+
       // Aguardar um pouco para garantir que a sessão foi estabelecida
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
       // Buscar perfil do usuário para redirecionar corretamente
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user) {
-        const tipoFromUser = (user.user_metadata as any)?.tipo as ('admin' | 'barbeiro' | 'cliente') | undefined;
+        const tipoFromUser = (user.user_metadata as any)?.tipo as ("admin" | "barbeiro" | "cliente") | undefined;
 
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
@@ -104,7 +106,7 @@ const Auth = () => {
           if (insertError) console.error("Erro ao criar perfil:", insertError);
         }
 
-        if (effectiveTipo === 'barbeiro') {
+        if (effectiveTipo === "barbeiro") {
           navigate("/barber-dashboard", { replace: true });
         } else {
           // Admin ou qualquer outro tipo vai para dashboard
@@ -126,17 +128,15 @@ const Auth = () => {
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center space-x-2 mb-4">
             <Scissors className="h-10 w-10 text-secondary" />
-            <span className="text-3xl font-bold text-white">BarberTime</span>
+            <span className="text-3xl font-bold text-white">AgendaAI</span>
           </div>
-          <p className="text-white/80">Sistema de Agendamento para Barbearias</p>
+          <p className="text-white/80">Sistema de Agendamento para pequenas e grandes empresas</p>
         </div>
 
         <Card className="shadow-2xl">
           <CardHeader>
             <CardTitle className="text-2xl text-center">Bem-vindo</CardTitle>
-            <CardDescription className="text-center">
-              Entre ou crie sua conta para começar
-            </CardDescription>
+            <CardDescription className="text-center">Entre ou crie sua conta para começar</CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="signin" className="w-full">
@@ -149,29 +149,13 @@ const Auth = () => {
                 <form onSubmit={handleSignIn} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="signin-email">E-mail</Label>
-                    <Input
-                      id="signin-email"
-                      name="email"
-                      type="email"
-                      placeholder="seu@email.com"
-                      required
-                    />
+                    <Input id="signin-email" name="email" type="email" placeholder="seu@email.com" required />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signin-password">Senha</Label>
-                    <Input
-                      id="signin-password"
-                      name="password"
-                      type="password"
-                      placeholder="••••••••"
-                      required
-                    />
+                    <Input id="signin-password" name="password" type="password" placeholder="••••••••" required />
                   </div>
-                  <Button
-                    type="submit"
-                    className="w-full bg-secondary hover:bg-secondary/90"
-                    disabled={loading}
-                  >
+                  <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90" disabled={loading}>
                     {loading ? "Entrando..." : "Entrar"}
                   </Button>
                 </form>
@@ -181,23 +165,11 @@ const Auth = () => {
                 <form onSubmit={handleSignUp} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="signup-nome">Nome Completo</Label>
-                    <Input
-                      id="signup-nome"
-                      name="nome"
-                      type="text"
-                      placeholder="Seu nome"
-                      required
-                    />
+                    <Input id="signup-nome" name="nome" type="text" placeholder="Seu nome" required />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-email">E-mail</Label>
-                    <Input
-                      id="signup-email"
-                      name="email"
-                      type="email"
-                      placeholder="seu@email.com"
-                      required
-                    />
+                    <Input id="signup-email" name="email" type="email" placeholder="seu@email.com" required />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-password">Senha</Label>
@@ -210,11 +182,7 @@ const Auth = () => {
                       minLength={6}
                     />
                   </div>
-                  <Button
-                    type="submit"
-                    className="w-full bg-secondary hover:bg-secondary/90"
-                    disabled={loading}
-                  >
+                  <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90" disabled={loading}>
                     {loading ? "Criando conta..." : "Criar Conta"}
                   </Button>
                 </form>
