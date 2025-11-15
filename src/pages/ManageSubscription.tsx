@@ -215,7 +215,7 @@ const ManageSubscription = () => {
                 {barbearia?.plano_ativo && (
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Valor Mensal</p>
-                    <p className="text-lg font-semibold text-secondary">R$ 49,90</p>
+                    <p className="text-lg font-semibold text-secondary">R$ 12,99</p>
                   </div>
                 )}
               </div>
@@ -264,7 +264,7 @@ const ManageSubscription = () => {
           <CardContent>
             <div className="space-y-4">
               <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-bold text-primary">R$ 49,90</span>
+                <span className="text-4xl font-bold text-primary">R$ 12,99</span>
                 <span className="text-muted-foreground">/mês</span>
               </div>
 
