@@ -260,7 +260,7 @@ const Barbers = () => {
 
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-primary mb-2">Gestão de Barbeiros</h1>
+            <h1 className="text-3xl font-bold text-primary mb-2">Gestão de Profissionais</h1>
             <p className="text-muted-foreground">Gerencie sua equipe de profissionais</p>
           </div>
           <Dialog open={dialogOpen} onOpenChange={(open) => {
@@ -270,12 +270,12 @@ const Barbers = () => {
             <DialogTrigger asChild>
               <Button>
                 <Plus className="h-4 w-4 mr-2" />
-                Adicionar Barbeiro
+                Adicionar Profissional
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>{editingBarbeiro ? "Editar Barbeiro" : "Novo Barbeiro"}</DialogTitle>
+                <DialogTitle>{editingBarbeiro ? "Editar Profissional" : "Novo Profissional"}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">

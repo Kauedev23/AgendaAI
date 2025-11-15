@@ -10,6 +10,7 @@ import { Calendar, Clock, Scissors, MapPin, Phone, Check } from "lucide-react";
 import { toast } from "sonner";
 import { format, addDays, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { getCustomTexts } from "@/utils/defaultServices";
 
 const PublicBooking = () => {
   const { slug } = useParams();
@@ -97,7 +98,7 @@ const PublicBooking = () => {
         .maybeSingle();
 
       if (!barbeariasData) {
-        toast.error("Barbearia não encontrada");
+        toast.error("Negócio não encontrado");
         return;
       }
 
@@ -273,10 +274,12 @@ const PublicBooking = () => {
   if (!barbearia) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-muted-foreground">Barbearia não encontrada</p>
+        <p className="text-muted-foreground">Negócio não encontrado</p>
       </div>
     );
   }
+
+  const customTexts = getCustomTexts(barbearia.tipo_comercio || 'outro');
 
   if (bookingSuccess) {
     return (
@@ -355,13 +358,14 @@ const PublicBooking = () => {
           <div className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Escolha o Barbeiro</CardTitle>
+                <CardTitle>{customTexts.titulo}</CardTitle>
               </CardHeader>
               <CardContent>
+                <p className="text-muted-foreground mb-4">{customTexts.subtitulo}</p>
                 {barbeiros.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <Scissors className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p>Nenhum barbeiro disponível no momento</p>
+                    <p>Nenhum profissional disponível no momento</p>
                   </div>
                 ) : (
                   <div className="grid md:grid-cols-2 gap-4">
@@ -381,7 +385,7 @@ const PublicBooking = () => {
                               <Scissors className="h-5 w-5 text-secondary" />
                             </div>
                             <p className="font-semibold text-lg text-primary">
-                              {barbeiro.profiles?.nome || 'Barbeiro'}
+                              {barbeiro.profiles?.nome || 'Profissional'}
                             </p>
                           </div>
                           {barbeiro.bio && (

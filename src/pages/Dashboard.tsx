@@ -134,7 +134,7 @@ const Dashboard = () => {
             <div className="flex items-center space-x-3">
               <Scissors className="h-8 w-8 text-secondary" />
               <div>
-                <h1 className="text-2xl font-bold text-primary">BarberTime</h1>
+                <h1 className="text-2xl font-bold text-primary">Agenda AI</h1>
                 <p className="text-sm text-muted-foreground">Dashboard</p>
               </div>
             </div>

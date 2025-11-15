@@ -125,7 +125,7 @@ const Appointments = () => {
 
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-primary mb-2">Agendamentos</h1>
-          <p className="text-muted-foreground">Gerencie todos os agendamentos da barbearia</p>
+          <p className="text-muted-foreground">Gerencie todos os agendamentos do seu negócio</p>
         </div>
 
         {agendamentos.length === 0 ? (

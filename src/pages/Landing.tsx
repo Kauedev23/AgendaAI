@@ -105,7 +105,7 @@ const Landing = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Scissors className="h-8 w-8 text-secondary" />
-              <span className="text-2xl font-bold">AgendaAI</span>
+              <span className="text-2xl font-bold">Agenda AI</span>
             </div>
             <div className="flex gap-4">
               <Link to="/auth">
@@ -126,7 +126,7 @@ const Landing = () => {
               O Sistema de Agendamento que o seu Negócio Merece
             </h1>
             <p className="text-xl md:text-2xl mb-8 text-white/90 animate-in fade-in slide-in-from-bottom-5 duration-1000 delay-200">
-              Modernize sua barbearia com agendamento online, gestão completa e experiência premium para seus clientes
+              Modernize seu negócio com agendamento online, gestão completa e experiência premium para seus clientes
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center animate-in fade-in slide-in-from-bottom-6 duration-1000 delay-300">
               <Link to="/auth">
