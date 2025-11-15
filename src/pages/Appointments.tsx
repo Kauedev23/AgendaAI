@@ -9,10 +9,12 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useBusinessTerminology } from "@/hooks/useBusinessTerminology";
+import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 
 const Appointments = () => {
   const navigate = useNavigate();
   const { terminology } = useBusinessTerminology();
+  const { isChecking } = useSubscriptionStatus();
   const [loading, setLoading] = useState(true);
   const [agendamentos, setAgendamentos] = useState<any[]>([]);
   const [barbearia, setBarbearia] = useState<any>(null);
@@ -106,7 +108,7 @@ const Appointments = () => {
     return <Badge variant={variants[status] || "default"}>{status}</Badge>;
   };
 
-  if (loading) {
+  if (loading || isChecking) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">

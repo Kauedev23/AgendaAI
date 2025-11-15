@@ -101,9 +101,14 @@ export type Database = {
           instagram: string | null
           logo_url: string | null
           nome: string
+          plano_ativo: boolean | null
           slug: string
+          status_assinatura: string | null
           telefone: string | null
           tipo_comercio: string | null
+          tipo_plano: string | null
+          trial_expira_em: string | null
+          trial_inicio: string | null
           updated_at: string | null
         }
         Insert: {
@@ -121,9 +126,14 @@ export type Database = {
           instagram?: string | null
           logo_url?: string | null
           nome: string
+          plano_ativo?: boolean | null
           slug: string
+          status_assinatura?: string | null
           telefone?: string | null
           tipo_comercio?: string | null
+          tipo_plano?: string | null
+          trial_expira_em?: string | null
+          trial_inicio?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -141,9 +151,14 @@ export type Database = {
           instagram?: string | null
           logo_url?: string | null
           nome?: string
+          plano_ativo?: boolean | null
           slug?: string
+          status_assinatura?: string | null
           telefone?: string | null
           tipo_comercio?: string | null
+          tipo_plano?: string | null
+          trial_expira_em?: string | null
+          trial_inicio?: string | null
           updated_at?: string | null
         }
         Relationships: []

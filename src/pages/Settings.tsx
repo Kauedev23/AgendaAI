@@ -8,9 +8,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Save, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 
 const Settings = () => {
   const navigate = useNavigate();
+  const { isChecking } = useSubscriptionStatus();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [barbearia, setBarbearia] = useState<any>(null);
@@ -197,7 +199,7 @@ const Settings = () => {
     }));
   };
 
-  if (loading) {
+  if (loading || isChecking) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
