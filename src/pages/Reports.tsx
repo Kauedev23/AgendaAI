@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ArrowLeft, TrendingUp, DollarSign, Calendar, Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 
 const Reports = () => {
   const navigate = useNavigate();
+  const { isChecking } = useSubscriptionStatus();
   const [loading, setLoading] = useState(true);
   const [loadingInsights, setLoadingInsights] = useState(false);
   const [barbearia, setBarbearia] = useState<any>(null);
@@ -147,7 +149,7 @@ const Reports = () => {
     }
   };
 
-  if (loading) {
+  if (loading || isChecking) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">

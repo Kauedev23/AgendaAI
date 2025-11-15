@@ -10,10 +10,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Plus, Scissors, Trash2, Edit, Key } from "lucide-react";
 import { toast } from "sonner";
 import { useBusinessTerminology } from "@/hooks/useBusinessTerminology";
+import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 
 const Barbers = () => {
   const navigate = useNavigate();
   const { terminology } = useBusinessTerminology();
+  const { isChecking } = useSubscriptionStatus();
   const [loading, setLoading] = useState(true);
   const [barbeiros, setBarbeiros] = useState<any[]>([]);
   const [barbearia, setBarbearia] = useState<any>(null);
@@ -241,7 +243,7 @@ const Barbers = () => {
     setEditingBarbeiro(null);
   };
 
-  if (loading) {
+  if (loading || isChecking) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">

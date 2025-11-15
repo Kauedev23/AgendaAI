@@ -6,11 +6,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Calendar, Users, Scissors, TrendingUp, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { useBusinessTerminology } from "@/hooks/useBusinessTerminology";
+import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import logo from "@/assets/logo.png";
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { terminology } = useBusinessTerminology();
+  const { isChecking } = useSubscriptionStatus();
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [barbearia, setBarbearia] = useState<any>(null);
@@ -117,7 +119,7 @@ const Dashboard = () => {
     }
   };
 
-  if (loading) {
+  if (loading || isChecking) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
