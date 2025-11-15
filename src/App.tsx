@@ -14,6 +14,7 @@ import Appointments from "./pages/Appointments";
 import Reports from "./pages/Reports";
 import PublicBooking from "./pages/PublicBooking";
 import Subscription from "./pages/Subscription";
+import ManageSubscription from "./pages/ManageSubscription";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,6 +36,7 @@ const App = () => (
           <Route path="/appointments" element={<Appointments />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/subscription" element={<Subscription />} />
+          <Route path="/manage-subscription" element={<ManageSubscription />} />
           <Route path="/:slug" element={<PublicBooking />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
