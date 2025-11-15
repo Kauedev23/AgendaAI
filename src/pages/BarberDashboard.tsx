@@ -8,6 +8,7 @@ import { Calendar, Scissors, LogOut, Clock, User } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { PWAInstallBanner } from "@/components/PWAInstallBanner";
 
 const BarberDashboard = () => {
   const navigate = useNavigate();
@@ -172,6 +173,9 @@ const BarberDashboard = () => {
             Aqui estão seus próximos atendimentos
           </p>
         </div>
+
+        {/* PWA Install Banner */}
+        <PWAInstallBanner />
 
         {/* Stats Cards */}
         <div className="grid md:grid-cols-3 gap-6 mb-8">
