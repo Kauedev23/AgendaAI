@@ -36,40 +36,39 @@ const Subscription = () => {
   const handleActivateSubscription = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
         toast({
           title: "Erro",
-          description: "Usuário não autenticado",
+          description: "Você precisa estar autenticado",
           variant: "destructive",
         });
+        navigate("/auth");
         return;
       }
 
-      // Aqui futuramente integrar com gateway de pagamento
-      // Por enquanto, apenas ativar o plano para demonstração
-      const { error } = await supabase
-        .from("barbearias")
-        .update({
-          plano_ativo: true,
-          tipo_plano: "profissional",
-          status_assinatura: "ativo",
-        })
-        .eq("admin_id", user.id);
+      // Call Stripe checkout
+      const { data, error } = await supabase.functions.invoke('create-checkout', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      });
 
       if (error) throw error;
 
-      toast({
-        title: "Sucesso!",
-        description: "Assinatura ativada com sucesso!",
-      });
-
-      navigate("/dashboard");
+      if (data?.url) {
+        // Open Stripe Checkout in new tab
+        window.open(data.url, '_blank');
+        toast({
+          title: "Redirecionando...",
+          description: "Abrindo página de pagamento do Stripe",
+        });
+      }
     } catch (error) {
       console.error("Erro ao ativar assinatura:", error);
       toast({
         title: "Erro",
-        description: "Não foi possível ativar a assinatura",
+        description: "Não foi possível iniciar o processo de assinatura",
         variant: "destructive",
       });
     } finally {
