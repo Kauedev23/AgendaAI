@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Users, Scissors, TrendingUp, LogOut } from "lucide-react";
+import { Calendar, Users, Scissors, TrendingUp, LogOut, CreditCard, AlertCircle, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { useBusinessTerminology } from "@/hooks/useBusinessTerminology";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
@@ -12,7 +12,7 @@ import logo from "@/assets/logo.png";
 const Dashboard = () => {
   const navigate = useNavigate();
   const { terminology } = useBusinessTerminology();
-  const { isChecking } = useSubscriptionStatus();
+  const { isChecking, subscriptionData } = useSubscriptionStatus();
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [barbearia, setBarbearia] = useState<any>(null);
@@ -142,6 +142,23 @@ const Dashboard = () => {
                 <h1 className="text-2xl font-bold text-primary">Agenda AI</h1>
                 <p className="text-sm text-muted-foreground">Dashboard</p>
               </div>
+              {subscriptionData && (
+                <div className="ml-4 px-3 py-1 rounded-full text-xs font-medium border">
+                  {subscriptionData.planoAtivo ? (
+                    <span className="text-green-600 dark:text-green-400 border-green-200 dark:border-green-800">
+                      ✓ Plano Ativo
+                    </span>
+                  ) : subscriptionData.diasRestantes > 0 ? (
+                    <span className="text-yellow-600 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800">
+                      Trial - {subscriptionData.diasRestantes}d
+                    </span>
+                  ) : (
+                    <span className="text-red-600 dark:text-red-400 border-red-200 dark:border-red-800">
+                      Expirado
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-4">
               <div className="text-right">
@@ -168,6 +185,74 @@ const Dashboard = () => {
             Bem-vindo ao seu painel de controle
           </p>
         </div>
+
+        {/* Alerta de Trial */}
+        {subscriptionData && !subscriptionData.planoAtivo && subscriptionData.diasRestantes > 0 && subscriptionData.diasRestantes <= 7 && (
+          <Card className="mb-6 border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-4">
+                <AlertCircle className="h-6 w-6 text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h3 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-1">
+                    Período gratuito terminando em {subscriptionData.diasRestantes} {subscriptionData.diasRestantes === 1 ? 'dia' : 'dias'}
+                  </h3>
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-3">
+                    Assine agora para continuar usando todas as funcionalidades do Agenda AI sem interrupções.
+                  </p>
+                  <Button
+                    onClick={() => navigate("/manage-subscription")}
+                    size="sm"
+                    className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                  >
+                    Ver Planos
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Card de Status da Assinatura */}
+        {subscriptionData && (
+          <Card className="mb-6 border-primary/20">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-lg">Status da Assinatura</CardTitle>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate("/manage-subscription")}
+                >
+                  Gerenciar
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Plano Atual</p>
+                  <p className="font-semibold text-primary">
+                    {subscriptionData.planoAtivo ? "Profissional - R$ 49,90/mês" : "Trial Gratuito"}
+                  </p>
+                </div>
+                {!subscriptionData.planoAtivo && subscriptionData.diasRestantes > 0 && (
+                  <div className="text-right">
+                    <p className="text-sm text-muted-foreground mb-1">Dias Restantes</p>
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-secondary" />
+                      <p className="font-semibold text-secondary">
+                        {subscriptionData.diasRestantes} {subscriptionData.diasRestantes === 1 ? 'dia' : 'dias'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Stats Cards */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -281,6 +366,14 @@ const Dashboard = () => {
                 >
                   <span className="font-semibold mb-1">Relatórios</span>
                   <span className="text-xs text-muted-foreground">Insights com IA</span>
+                </Button>
+                <Button 
+                  className="h-auto py-4 flex flex-col items-start" 
+                  variant="outline"
+                  onClick={() => navigate("/manage-subscription")}
+                >
+                  <span className="font-semibold mb-1">Minha Assinatura</span>
+                  <span className="text-xs text-muted-foreground">Gerencie seu plano</span>
                 </Button>
               </div>
             </CardContent>
