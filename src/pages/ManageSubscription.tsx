@@ -58,29 +58,59 @@ const ManageSubscription = () => {
     }
   };
 
-  const handleCancelSubscription = async () => {
+  const handleManageSubscription = async () => {
     setCancelling(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("Você precisa estar autenticado");
+        return;
+      }
 
-      const { error } = await supabase
-        .from("barbearias")
-        .update({
-          plano_ativo: false,
-          status_assinatura: "cancelado",
-        })
-        .eq("admin_id", user.id);
+      const { data, error } = await supabase.functions.invoke('customer-portal', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      });
 
       if (error) throw error;
 
-      toast.success("Assinatura cancelada com sucesso");
-      loadSubscriptionData();
+      if (data?.url) {
+        window.open(data.url, '_blank');
+        toast.success("Abrindo portal de gerenciamento...");
+      }
     } catch (error: any) {
       console.error("Erro:", error);
-      toast.error("Erro ao cancelar assinatura");
+      toast.error("Erro ao abrir portal de gerenciamento");
     } finally {
       setCancelling(false);
+    }
+  };
+
+  const handleActivateSubscription = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("Você precisa estar autenticado");
+        navigate("/auth");
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke('create-checkout', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.url) {
+        window.open(data.url, '_blank');
+        toast.success("Redirecionando para o checkout...");
+      }
+    } catch (error: any) {
+      console.error("Erro:", error);
+      toast.error("Erro ao iniciar processo de assinatura");
     }
   };
 
@@ -259,7 +289,7 @@ const ManageSubscription = () => {
               <div className="pt-4">
                 {!barbearia?.plano_ativo ? (
                   <Button
-                    onClick={() => navigate("/subscription")}
+                    onClick={handleActivateSubscription}
                     size="lg"
                     className="w-full bg-secondary hover:bg-secondary/90 text-white"
                   >
@@ -273,12 +303,12 @@ const ManageSubscription = () => {
                       <span className="font-medium">Você já está assinando este plano</span>
                     </div>
                     <Button
-                      onClick={handleCancelSubscription}
+                      onClick={handleManageSubscription}
                       disabled={cancelling}
                       variant="outline"
                       className="w-full"
                     >
-                      {cancelling ? "Cancelando..." : "Cancelar Assinatura"}
+                      {cancelling ? "Abrindo..." : "Gerenciar Assinatura no Stripe"}
                     </Button>
                   </div>
                 )}

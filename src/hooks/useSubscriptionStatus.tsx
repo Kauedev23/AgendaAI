@@ -21,11 +21,13 @@ export const useSubscriptionStatus = () => {
 
   const checkSubscription = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
         navigate("/auth");
         return;
       }
+
+      const user = session.user;
 
       const { data: profile } = await supabase
         .from("profiles")
@@ -39,6 +41,18 @@ export const useSubscriptionStatus = () => {
         return;
       }
 
+      // Check subscription with Stripe
+      const { data: stripeData, error: stripeError } = await supabase.functions.invoke('check-subscription', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      });
+
+      if (stripeError) {
+        console.error("Erro ao verificar assinatura no Stripe:", stripeError);
+      }
+
+      // Get updated data from database
       const { data: barbearia } = await supabase
         .from("barbearias")
         .select("plano_ativo, status_assinatura, trial_expira_em")
