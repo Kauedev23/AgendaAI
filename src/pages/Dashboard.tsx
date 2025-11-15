@@ -7,6 +7,7 @@ import { Calendar, Users, Scissors, TrendingUp, LogOut, CreditCard, AlertCircle,
 import { toast } from "sonner";
 import { useBusinessTerminology } from "@/hooks/useBusinessTerminology";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
+import { PWAInstallBanner } from "@/components/PWAInstallBanner";
 import logo from "@/assets/logo.png";
 
 const Dashboard = () => {
@@ -185,6 +186,9 @@ const Dashboard = () => {
             Bem-vindo ao seu painel de controle
           </p>
         </div>
+
+        {/* PWA Install Banner */}
+        <PWAInstallBanner />
 
         {/* Alerta de Trial */}
         {subscriptionData && !subscriptionData.planoAtivo && subscriptionData.diasRestantes > 0 && subscriptionData.diasRestantes <= 7 && (
