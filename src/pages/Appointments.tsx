@@ -8,9 +8,11 @@ import { ArrowLeft, Calendar, Clock, User, Scissors } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useBusinessTerminology } from "@/hooks/useBusinessTerminology";
 
 const Appointments = () => {
   const navigate = useNavigate();
+  const { terminology } = useBusinessTerminology();
   const [loading, setLoading] = useState(true);
   const [agendamentos, setAgendamentos] = useState<any[]>([]);
   const [barbearia, setBarbearia] = useState<any>(null);

@@ -9,9 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Plus, Scissors, Trash2, Edit, Key } from "lucide-react";
 import { toast } from "sonner";
+import { useBusinessTerminology } from "@/hooks/useBusinessTerminology";
 
 const Barbers = () => {
   const navigate = useNavigate();
+  const { terminology } = useBusinessTerminology();
   const [loading, setLoading] = useState(true);
   const [barbeiros, setBarbeiros] = useState<any[]>([]);
   const [barbearia, setBarbearia] = useState<any>(null);

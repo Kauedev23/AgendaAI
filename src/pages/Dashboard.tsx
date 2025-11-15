@@ -5,9 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, Users, Scissors, TrendingUp, LogOut } from "lucide-react";
 import { toast } from "sonner";
+import { useBusinessTerminology } from "@/hooks/useBusinessTerminology";
+import logo from "@/assets/logo.png";
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { terminology } = useBusinessTerminology();
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [barbearia, setBarbearia] = useState<any>(null);
