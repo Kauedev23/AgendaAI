@@ -109,6 +109,19 @@ const Settings = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Verificar se o slug já existe (excluindo a barbearia atual se estiver editando)
+      const { data: existingSlug } = await supabase
+        .from("barbearias")
+        .select("id")
+        .eq("slug", formData.slug)
+        .maybeSingle();
+
+      if (existingSlug && (!barbearia || existingSlug.id !== barbearia.id)) {
+        toast.error("Este slug já está sendo usado por outro negócio. Escolha um slug único.");
+        setSaving(false);
+        return;
+      }
+
       const dataToSave = {
         ...formData,
         admin_id: user.id
@@ -251,10 +264,13 @@ const Settings = () => {
                     id="slug"
                     value={formData.slug}
                     onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
-                    placeholder="Ex: barbearia-joao"
+                    placeholder="Ex: studio-premium-123"
                   />
                   <p className="text-xs text-muted-foreground">
                     Sua página: /{formData.slug || "seu-slug"}
+                  </p>
+                  <p className="text-xs text-orange-600">
+                    ⚠️ O slug deve ser único - não pode estar sendo usado por outro negócio
                   </p>
                 </div>
               </div>
