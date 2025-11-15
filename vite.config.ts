@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === "development" && componentTagger(),
     VitePWA({
-      registerType: "autoUpdate",
+      registerType: "prompt",
       includeAssets: ["logo-192.png", "logo-512.png", "favicon.ico"],
       manifest: {
         name: "AgendaAI - Sistema de Agendamento",
