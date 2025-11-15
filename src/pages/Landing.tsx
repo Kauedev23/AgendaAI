@@ -234,7 +234,7 @@ const Landing = () => {
         <div className="container mx-auto px-6 text-center">
           <div className="flex items-center justify-center space-x-2 mb-4">
             <Scissors className="h-6 w-6 text-secondary" />
-            <span className="text-xl font-bold">BarberTime</span>
+            <span className="text-xl font-bold">AgendaAI</span>
           </div>
           <p className="text-white/70">
             © 2024 AgendaAI. Sistema profissional de agendamento para pequenos e grandes negócios.
