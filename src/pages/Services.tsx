@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Plus, Scissors, Trash2, Edit, Clock, DollarSign } from "lucide-react";
+import { ArrowLeft, Plus, Scissors, Trash2, Edit, Clock, DollarSign, Home } from "lucide-react";
 import { toast } from "sonner";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 
@@ -172,26 +172,30 @@ const Services = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-muted">
-      <div className="container mx-auto px-6 py-8">
-        <Button variant="ghost" onClick={() => navigate("/dashboard")} className="mb-6">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Voltar ao Dashboard
-        </Button>
-
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-primary mb-2">Gestão de Serviços</h1>
-            <p className="text-muted-foreground">Gerencie os serviços oferecidos</p>
-          </div>
+    <div className="min-h-screen bg-white p-4">
+      <div className="max-w-5xl mx-auto">
+        <header className="mb-6 flex items-center justify-between gap-4">
+          <Button
+            variant="ghost"
+            onClick={() => navigate("/dashboard")}
+            className="gap-2 hover:bg-transparent p-0"
+          >
+            <Home className="h-6 w-6" />
+            <span className="text-lg">Voltar</span>
+          </Button>
+          
+          <h1 className="text-3xl font-bold flex-1">
+            Gestão de Serviços
+          </h1>
+          
           <Dialog open={dialogOpen} onOpenChange={(open) => {
             setDialogOpen(open);
             if (!open) resetForm();
           }}>
             <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Adicionar Serviço
+              <Button className="bg-cyan-500 hover:bg-cyan-600 text-white font-bold px-8 py-6 rounded-full text-base">
+                <Plus className="h-5 w-5 mr-2" />
+                ADICIONAR
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
@@ -247,7 +251,7 @@ const Services = () => {
               </div>
             </DialogContent>
           </Dialog>
-        </div>
+        </header>
 
         {servicos.length === 0 ? (
           <Card>

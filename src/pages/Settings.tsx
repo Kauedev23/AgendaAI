@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Save, Upload } from "lucide-react";
+import { ArrowLeft, Save, Upload, Home } from "lucide-react";
 import { toast } from "sonner";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 
@@ -211,17 +211,24 @@ const Settings = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-muted">
-      <div className="container mx-auto px-6 py-8">
-        <Button variant="ghost" onClick={() => navigate("/dashboard")} className="mb-6">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Voltar ao Dashboard
-        </Button>
-
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-primary mb-2">Configurações do Negócio - Agenda AI</h1>
-          <p className="text-muted-foreground">Configure os dados e aparência do seu negócio</p>
-        </div>
+    <div className="min-h-screen bg-white">
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        <header className="mb-6 flex items-center justify-between gap-4">
+          <Button
+            variant="ghost"
+            onClick={() => navigate("/dashboard")}
+            className="gap-2 hover:bg-transparent p-0"
+          >
+            <Home className="h-6 w-6" />
+            <span className="text-lg">Voltar</span>
+          </Button>
+          
+          <h1 className="text-3xl font-bold flex-1 text-center">
+            Configurações do Negócio
+          </h1>
+          
+          <div className="w-24"></div>
+        </header>
 
         <div className="grid gap-6 max-w-4xl">
           <Card>
