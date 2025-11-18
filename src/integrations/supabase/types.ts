@@ -220,7 +220,9 @@ export type Database = {
           horario_fim: string | null
           horario_inicio: string | null
           id: string
+          telefone: string | null
           user_id: string
+          whatsapp: string | null
         }
         Insert: {
           ativo?: boolean | null
@@ -233,7 +235,9 @@ export type Database = {
           horario_fim?: string | null
           horario_inicio?: string | null
           id?: string
+          telefone?: string | null
           user_id: string
+          whatsapp?: string | null
         }
         Update: {
           ativo?: boolean | null
@@ -246,7 +250,9 @@ export type Database = {
           horario_fim?: string | null
           horario_inicio?: string | null
           id?: string
+          telefone?: string | null
           user_id?: string
+          whatsapp?: string | null
         }
         Relationships: [
           {
@@ -271,6 +277,7 @@ export type Database = {
           barbearia_id: string | null
           created_at: string | null
           email: string
+          foto_upload_url: string | null
           id: string
           nome: string
           telefone: string | null
@@ -282,6 +289,7 @@ export type Database = {
           barbearia_id?: string | null
           created_at?: string | null
           email: string
+          foto_upload_url?: string | null
           id: string
           nome: string
           telefone?: string | null
@@ -293,6 +301,7 @@ export type Database = {
           barbearia_id?: string | null
           created_at?: string | null
           email?: string
+          foto_upload_url?: string | null
           id?: string
           nome?: string
           telefone?: string | null
