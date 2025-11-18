@@ -1,38 +1,51 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, Clock, Scissors, MapPin, Phone, Check } from "lucide-react";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { 
+  Calendar, Clock, User, Check, ArrowLeft, ArrowRight, 
+  Phone, MapPin, Star, Loader2, LogOut, CheckCircle2
+} from "lucide-react";
 import { toast } from "sonner";
 import { format, addDays, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { getCustomTexts } from "@/utils/defaultServices";
+import { z } from "zod";
+
+// Schema de validação
+const bookingSchema = z.object({
+  observacoes: z.string().max(500, "Observações muito longas").optional(),
+});
 
 const PublicBooking = () => {
   const { slug } = useParams();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
+  
   const [barbearia, setBarbearia] = useState<any>(null);
   const [barbeiros, setBarbeiros] = useState<any[]>([]);
   const [servicos, setServicos] = useState<any[]>([]);
+  
   const [selectedBarbeiro, setSelectedBarbeiro] = useState<string>("");
   const [selectedServico, setSelectedServico] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedTime, setSelectedTime] = useState<string>("");
+  const [observacoes, setObservacoes] = useState("");
   const [availableTimes, setAvailableTimes] = useState<string[]>([]);
-  const [clientData, setClientData] = useState({
-    nome: "",
-    email: "",
-    telefone: "",
-    observacoes: ""
-  });
+  
   const [step, setStep] = useState(1);
   const [bookingSuccess, setBookingSuccess] = useState(false);
 
   useEffect(() => {
+    checkAuth();
     loadBarbearia();
   }, [slug]);
 
@@ -42,52 +55,33 @@ const PublicBooking = () => {
     }
   }, [selectedBarbeiro, selectedDate, selectedServico]);
 
-  // Aplicar cores personalizadas da barbearia
-  useEffect(() => {
-    if (barbearia?.cor_primaria && barbearia?.cor_secundaria) {
-      // Converter hex para HSL
-      const hexToHSL = (hex: string) => {
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        if (!result) return null;
-        
-        let r = parseInt(result[1], 16) / 255;
-        let g = parseInt(result[2], 16) / 255;
-        let b = parseInt(result[3], 16) / 255;
-
-        const max = Math.max(r, g, b);
-        const min = Math.min(r, g, b);
-        let h = 0, s = 0, l = (max + min) / 2;
-
-        if (max !== min) {
-          const d = max - min;
-          s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-          switch (max) {
-            case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
-            case g: h = ((b - r) / d + 2) / 6; break;
-            case b: h = ((r - g) / d + 4) / 6; break;
-          }
-        }
-
-        return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
-      };
-
-      const primaryHSL = hexToHSL(barbearia.cor_primaria);
-      const secondaryHSL = hexToHSL(barbearia.cor_secundaria);
-
-      if (primaryHSL && secondaryHSL) {
-        document.documentElement.style.setProperty('--primary', primaryHSL);
-        document.documentElement.style.setProperty('--secondary', secondaryHSL);
-        document.documentElement.style.setProperty('--accent', secondaryHSL);
-      }
+  const checkAuth = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      navigate("/client-auth", { state: { from: window.location.pathname } });
+      return;
     }
 
-    return () => {
-      // Resetar para as cores padrão ao sair
-      document.documentElement.style.setProperty('--primary', '221 39% 11%');
-      document.documentElement.style.setProperty('--secondary', '0 84% 60%');
-      document.documentElement.style.setProperty('--accent', '0 84% 60%');
-    };
-  }, [barbearia]);
+    setUser(user);
+
+    // Buscar perfil
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single();
+
+    if (profileData) {
+      setProfile(profileData);
+    }
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    toast.success("Logout realizado");
+    navigate("/client-auth");
+  };
 
   const loadBarbearia = async () => {
     try {
@@ -99,172 +93,165 @@ const PublicBooking = () => {
 
       if (!barbeariasData) {
         toast.error("Negócio não encontrado");
+        setLoading(false);
         return;
       }
 
       setBarbearia(barbeariasData);
 
-      // Usar a função pública segura para buscar barbeiros
-      const { data: barbeirosData, error: barbeirosError } = await supabase
-        .rpc('get_public_barbers', { _slug: slug });
+      // Buscar barbeiros ativos
+      const { data: barbeirosData } = await supabase
+        .from("barbeiros")
+        .select(`
+          *,
+          profiles:user_id(nome, avatar_url)
+        `)
+        .eq("barbearia_id", barbeariasData.id)
+        .eq("ativo", true);
 
-      if (barbeirosError) {
-        console.error("Erro ao buscar barbeiros:", barbeirosError);
-        toast.error("Erro ao carregar barbeiros");
-      }
+      setBarbeiros(barbeirosData || []);
 
-      // Mapear dados para o formato esperado
-      const barbeirosFormatted = (barbeirosData || []).map((b: any) => ({
-        id: b.id,
-        bio: b.bio,
-        especialidades: b.especialidades,
-        foto_url: b.foto_url,
-        profiles: { nome: b.nome }
-      }));
-
-      setBarbeiros(barbeirosFormatted);
-
+      // Buscar serviços ativos
       const { data: servicosData } = await supabase
         .from("servicos")
         .select("*")
         .eq("barbearia_id", barbeariasData.id)
-        .eq("ativo", true);
+        .eq("ativo", true)
+        .order("preco");
 
       setServicos(servicosData || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro:", error);
+      toast.error("Erro ao carregar dados");
     } finally {
       setLoading(false);
     }
   };
 
   const loadAvailableTimes = async () => {
-    if (!barbearia || !selectedDate || !selectedBarbeiro) {
-      setAvailableTimes([]);
-      return;
-    }
-
     try {
-      // Normaliza tempo vindo do banco ("HH:mm:ss" -> "HH:mm")
-      const normalize = (t: string | null | undefined) => {
-        if (!t) return null;
-        return t.length >= 5 ? t.slice(0, 5) : null;
-      };
+      const barbeiro = barbeiros.find(b => b.id === selectedBarbeiro);
+      if (!barbeiro) return;
 
-      const startStr = normalize(barbearia.horario_abertura as string) || "09:00";
-      const endStr = normalize(barbearia.horario_fechamento as string) || "19:00";
+      const servico = servicos.find(s => s.id === selectedServico);
+      if (!servico) return;
 
-      const times: string[] = [];
-      let current = parse(startStr, "HH:mm", new Date());
-      const endTime = parse(endStr, "HH:mm", new Date());
-
-      // Se parse falhar, evita loop infinito
-      if (isNaN(current.getTime()) || isNaN(endTime.getTime())) {
-        setAvailableTimes([]);
-        return;
-      }
-
-      while (current < endTime) {
-        times.push(format(current, "HH:mm"));
-        current = new Date(current.getTime() + 30 * 60000); // +30 min
-      }
-
-      // Buscar horários já ocupados
-      const { data: agendamentos, error: agendamentosError } = await supabase
+      // Buscar agendamentos existentes nesta data
+      const { data: agendamentos } = await supabase
         .from("agendamentos")
-        .select("hora, servico_id")
+        .select("hora, data")
         .eq("barbeiro_id", selectedBarbeiro)
         .eq("data", selectedDate)
         .in("status", ["pendente", "confirmado"]);
 
-      if (agendamentosError) {
-        console.error("Erro ao buscar agendamentos:", agendamentosError);
-        setAvailableTimes(times); // em caso de erro, mostrar todos
-        return;
-      }
+      // Gerar horários disponíveis
+      const inicio = parse(barbeiro.horario_inicio || "08:00", "HH:mm", new Date());
+      const fim = parse(barbeiro.horario_fim || "19:00", "HH:mm", new Date());
+      const duracao = servico.duracao || 30;
 
-      // Mapear horários ocupados considerando duração do serviço dos agendamentos existentes
-      const occupiedSlots = new Set<string>();
-      
-      if (agendamentos && agendamentos.length > 0) {
-        for (const ag of agendamentos) {
-          const { data: servico } = await supabase
-            .from("servicos")
-            .select("duracao")
-            .eq("id", ag.servico_id)
-            .maybeSingle();
-          
-          if (servico) {
-            const startTime = parse(ag.hora.slice(0,5), "HH:mm", new Date());
-            const slots = Math.ceil((servico.duracao as number) / 30);
-            
-            for (let i = 0; i < slots; i++) {
-              const blockedTime = new Date(startTime.getTime() + i * 30 * 60000);
-              occupiedSlots.add(format(blockedTime, "HH:mm"));
-            }
-          }
+      const times: string[] = [];
+      let current = inicio;
+
+      while (current < fim) {
+        const timeStr = format(current, "HH:mm");
+        
+        // Verificar se já tem agendamento neste horário
+        const temAgendamento = agendamentos?.some(a => a.hora === timeStr + ":00");
+        
+        if (!temAgendamento) {
+          times.push(timeStr);
         }
+
+        // Adicionar minutos (não dias)
+        current = new Date(current.getTime() + duracao * 60 * 1000);
       }
 
-      const available = times.filter(time => !occupiedSlots.has(time));
-      setAvailableTimes(available);
-    } catch (error) {
-      console.error("Erro ao carregar horários:", error);
-      toast.error("Erro ao carregar horários disponíveis");
-      setAvailableTimes([]);
+      setAvailableTimes(times);
+    } catch (error: any) {
+      console.error("Erro:", error);
     }
   };
 
   const handleBooking = async () => {
-    if (!clientData.nome || !clientData.email) {
-      toast.error("Preencha nome e email");
+    if (!user) {
+      toast.error("Você precisa estar logado");
+      navigate("/client-auth", { state: { from: window.location.pathname } });
       return;
     }
 
-    if (!barbearia || !selectedBarbeiro || !selectedServico || !selectedDate || !selectedTime) {
-      toast.error("Selecione barbeiro, serviço, data e horário");
+    // Validar observações
+    const validation = bookingSchema.safeParse({ observacoes });
+    if (!validation.success) {
+      toast.error(validation.error.errors[0].message);
       return;
     }
+
+    setSubmitting(true);
 
     try {
-      const { data: resp, error: fnError } = await supabase.functions.invoke('public-booking', {
+      const { error } = await supabase.functions.invoke("public-booking", {
         body: {
-          barbeariaId: barbearia.id,
-          barbeiroId: selectedBarbeiro,
-          servicoId: selectedServico,
-          date: selectedDate,
-          time: selectedTime,
-          nome: clientData.nome,
-          email: clientData.email,
-          telefone: clientData.telefone,
-          observacoes: clientData.observacoes,
-        }
+          barbearia_id: barbearia.id,
+          barbeiro_id: selectedBarbeiro,
+          servico_id: selectedServico,
+          data: selectedDate,
+          hora: selectedTime,
+          observacoes: observacoes.trim() || null,
+        },
       });
 
-      if (fnError) throw fnError;
-      if (!resp?.ok) throw new Error(resp?.error || 'Falha ao criar agendamento');
+      if (error) throw error;
 
       setBookingSuccess(true);
       toast.success("Agendamento realizado com sucesso!");
     } catch (error: any) {
       console.error("Erro:", error);
-      toast.error(error?.message || "Erro ao realizar agendamento");
+      toast.error(error.message || "Erro ao realizar agendamento");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const getNext14Days = () => {
-    const days = [];
+  const getNextDates = () => {
+    const dates = [];
+    const barbeiro = barbeiros.find(b => b.id === selectedBarbeiro);
+    const diasFuncionamento = barbeiro?.dias_funcionamento || 
+      ["segunda", "terca", "quarta", "quinta", "sexta", "sabado"];
+
+    const diasMap: Record<number, string> = {
+      0: "domingo",
+      1: "segunda",
+      2: "terca",
+      3: "quarta",
+      4: "quinta",
+      5: "sexta",
+      6: "sabado",
+    };
+
     for (let i = 0; i < 14; i++) {
-      days.push(addDays(new Date(), i));
+      const date = addDays(new Date(), i);
+      const diaSemana = diasMap[date.getDay()];
+      
+      if (diasFuncionamento.includes(diaSemana)) {
+        dates.push(date);
+      }
     }
-    return days;
+
+    return dates.slice(0, 7);
+  };
+
+  const canContinue = () => {
+    if (step === 1) return selectedServico !== "";
+    if (step === 2) return selectedBarbeiro !== "";
+    if (step === 3) return selectedDate !== "" && selectedTime !== "";
+    return false;
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
           <p className="text-muted-foreground">Carregando...</p>
         </div>
       </div>
@@ -274,29 +261,64 @@ const PublicBooking = () => {
   if (!barbearia) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-muted-foreground">Negócio não encontrado</p>
+        <Card className="max-w-md">
+          <CardContent className="pt-6 text-center">
+            <p className="text-muted-foreground mb-4">Negócio não encontrado</p>
+            <Button onClick={() => navigate("/")}>Voltar</Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
-  const customTexts = getCustomTexts(barbearia.tipo_comercio || 'outro');
-
   if (bookingSuccess) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background to-muted flex items-center justify-center p-6">
-        <Card className="max-w-md w-full">
-          <CardContent className="pt-6 text-center">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Check className="h-8 w-8 text-green-600" />
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5 flex items-center justify-center p-4">
+        <Card className="max-w-lg w-full shadow-2xl">
+          <CardContent className="pt-12 pb-8 text-center">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-100 dark:bg-green-900/30 mb-6">
+              <CheckCircle2 className="h-12 w-12 text-green-600 dark:text-green-400" />
             </div>
-            <h2 className="text-2xl font-bold text-primary mb-2">Agendamento Confirmado!</h2>
-            <p className="text-muted-foreground mb-6">
-              Enviamos um email de confirmação com todos os detalhes do seu agendamento.
+            <h2 className="text-3xl font-bold mb-3">Agendamento Confirmado!</h2>
+            <p className="text-lg text-muted-foreground mb-6">
+              Seu horário foi reservado com sucesso
             </p>
-            <div className="bg-muted p-4 rounded-lg text-left space-y-2">
-              <p><strong>Data:</strong> {format(new Date(selectedDate + 'T00:00:00'), "dd/MM/yyyy", { locale: ptBR })}</p>
-              <p><strong>Horário:</strong> {selectedTime}</p>
-              <p><strong>Serviço:</strong> {servicos.find(s => s.id === selectedServico)?.nome}</p>
+            
+            <Card className="bg-muted/50 border-0 mb-8">
+              <CardContent className="pt-6 space-y-3 text-left">
+                <div className="flex items-center gap-3">
+                  <Calendar className="h-5 w-5 text-primary" />
+                  <span className="font-medium">
+                    {format(new Date(selectedDate), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Clock className="h-5 w-5 text-primary" />
+                  <span className="font-medium">{selectedTime}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <User className="h-5 w-5 text-primary" />
+                  <span className="font-medium">
+                    {barbeiros.find(b => b.id === selectedBarbeiro)?.profiles?.nome}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="space-y-3">
+              <Button
+                onClick={() => window.location.reload()}
+                className="w-full h-12 gradient-primary font-semibold"
+              >
+                Fazer Novo Agendamento
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => navigate("/")}
+                className="w-full h-12"
+              >
+                Voltar ao Início
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -305,203 +327,242 @@ const PublicBooking = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-muted">
+    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5">
       {/* Header */}
-      <div className="bg-card border-b">
-        <div className="container mx-auto px-6 py-6">
-          <div className="flex items-center gap-4">
-            <Scissors className="h-10 w-10 text-secondary" />
-            <div>
-              <h1 className="text-3xl font-bold text-primary">{barbearia.nome}</h1>
-              <div className="flex gap-4 text-sm text-muted-foreground mt-1">
-                {barbearia.endereco && (
-                  <span className="flex items-center gap-1">
-                    <MapPin className="h-3 w-3" />
-                    {barbearia.endereco}
-                  </span>
-                )}
-                {barbearia.telefone && (
-                  <span className="flex items-center gap-1">
-                    <Phone className="h-3 w-3" />
-                    {barbearia.telefone}
-                  </span>
-                )}
+      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50">
+        <div className="container-responsive py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              {barbearia.logo_url && (
+                <Avatar className="h-12 w-12">
+                  <AvatarImage src={barbearia.logo_url} alt={barbearia.nome} />
+                  <AvatarFallback>{barbearia.nome[0]}</AvatarFallback>
+                </Avatar>
+              )}
+              <div>
+                <h1 className="text-xl font-bold">{barbearia.nome}</h1>
+                <p className="text-sm text-muted-foreground flex items-center gap-1">
+                  <MapPin className="h-3 w-3" />
+                  {barbearia.endereco || "Online"}
+                </p>
               </div>
             </div>
+            
+            {user && (
+              <div className="flex items-center gap-3">
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={profile?.avatar_url} />
+                  <AvatarFallback className="bg-primary/10">
+                    {profile?.nome?.[0]?.toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <Button variant="ghost" size="sm" onClick={handleSignOut}>
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="container mx-auto px-6 py-8 max-w-4xl">
-        {/* Steps */}
-        <div className="mb-8">
-          <div className="flex items-center justify-center gap-4">
-            <div className={`flex items-center gap-2 ${step >= 1 ? 'text-primary' : 'text-muted-foreground'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= 1 ? 'bg-secondary text-white' : 'bg-muted'}`}>1</div>
-              <span className="hidden sm:inline">Serviço</span>
-            </div>
-            <div className="w-12 h-0.5 bg-border" />
-            <div className={`flex items-center gap-2 ${step >= 2 ? 'text-primary' : 'text-muted-foreground'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= 2 ? 'bg-secondary text-white' : 'bg-muted'}`}>2</div>
-              <span className="hidden sm:inline">Data/Hora</span>
-            </div>
-            <div className="w-12 h-0.5 bg-border" />
-            <div className={`flex items-center gap-2 ${step >= 3 ? 'text-primary' : 'text-muted-foreground'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= 3 ? 'bg-secondary text-white' : 'bg-muted'}`}>3</div>
-              <span className="hidden sm:inline">Seus Dados</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Step 1: Escolher Barbeiro e Serviço */}
-        {step === 1 && (
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>{customTexts.titulo}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground mb-4">{customTexts.subtitulo}</p>
-                {barbeiros.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Scissors className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p>Nenhum profissional disponível no momento</p>
-                  </div>
-                ) : (
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {barbeiros.map(barbeiro => (
-                      <Card
-                        key={barbeiro.id}
-                        className={`cursor-pointer transition-all border-2 hover:shadow-md ${
-                          selectedBarbeiro === barbeiro.id 
-                            ? 'ring-2 ring-secondary border-secondary bg-secondary/5' 
-                            : 'border-border hover:border-secondary/50'
-                        }`}
-                        onClick={() => setSelectedBarbeiro(barbeiro.id)}
-                      >
-                        <CardContent className="pt-6">
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center">
-                              <Scissors className="h-5 w-5 text-secondary" />
-                            </div>
-                            <p className="font-semibold text-lg text-primary">
-                              {barbeiro.profiles?.nome || 'Profissional'}
-                            </p>
-                          </div>
-                          {barbeiro.bio && (
-                            <p className="text-sm text-muted-foreground mt-2">{barbeiro.bio}</p>
-                          )}
-                          {barbeiro.especialidades && barbeiro.especialidades.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-3">
-                              {barbeiro.especialidades.map((esp: string, idx: number) => (
-                                <span key={idx} className="text-xs bg-muted px-2 py-1 rounded-full">
-                                  {esp}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Escolha o Serviço</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {servicos.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Scissors className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p>Nenhum serviço disponível no momento</p>
-                  </div>
-                ) : (
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {servicos.map(servico => (
-                      <Card
-                        key={servico.id}
-                        className={`cursor-pointer transition-all border-2 hover:shadow-md ${
-                          selectedServico === servico.id 
-                            ? 'ring-2 ring-secondary border-secondary bg-secondary/5' 
-                            : 'border-border hover:border-secondary/50'
-                        }`}
-                        onClick={() => setSelectedServico(servico.id)}
-                      >
-                        <CardContent className="pt-6">
-                          <p className="font-semibold text-lg text-primary mb-2">{servico.nome}</p>
-                          <div className="flex items-center justify-between">
-                            <p className="text-secondary font-bold text-xl">R$ {servico.preco.toFixed(2)}</p>
-                            <p className="text-sm text-muted-foreground flex items-center gap-1">
-                              <Clock className="h-4 w-4" />
-                              {servico.duracao} min
-                            </p>
-                          </div>
-                          {servico.descricao && (
-                            <p className="text-sm text-muted-foreground mt-2">{servico.descricao}</p>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Button
-              onClick={() => setStep(2)}
-              disabled={!selectedBarbeiro || !selectedServico}
-              className="w-full"
-              size="lg"
-            >
-              Continuar
-            </Button>
-          </div>
-        )}
-
-        {/* Step 2: Escolher Data e Horário */}
-        {step === 2 && (
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Escolha a Data</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {getNext14Days().map(day => (
-                    <Button
-                      key={day.toISOString()}
-                      variant={selectedDate === format(day, "yyyy-MM-dd") ? "default" : "outline"}
-                      onClick={() => setSelectedDate(format(day, "yyyy-MM-dd"))}
-                      className="flex flex-col h-auto py-3"
-                    >
-                      <span className="text-xs">{format(day, "EEE", { locale: ptBR })}</span>
-                      <span className="text-lg font-bold">{format(day, "dd")}</span>
-                      <span className="text-xs">{format(day, "MMM", { locale: ptBR })}</span>
-                    </Button>
-                  ))}
+      <div className="container-responsive py-8">
+        {/* Progress Steps */}
+        <div className="max-w-4xl mx-auto mb-8">
+          <div className="flex items-center justify-between">
+            {[1, 2, 3, 4].map((s) => (
+              <div key={s} className="flex items-center flex-1">
+                <div className={`flex items-center justify-center w-10 h-10 rounded-full font-bold transition-all ${
+                  step >= s 
+                    ? "bg-primary text-white" 
+                    : "bg-muted text-muted-foreground"
+                }`}>
+                  {step > s ? <Check className="h-5 w-5" /> : s}
                 </div>
-              </CardContent>
-            </Card>
+                {s < 4 && (
+                  <div className={`flex-1 h-1 mx-2 rounded transition-all ${
+                    step > s ? "bg-primary" : "bg-muted"
+                  }`} />
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-between mt-3 text-xs sm:text-sm font-medium">
+            <span className={step >= 1 ? "text-primary" : "text-muted-foreground"}>Serviço</span>
+            <span className={step >= 2 ? "text-primary" : "text-muted-foreground"}>Profissional</span>
+            <span className={step >= 3 ? "text-primary" : "text-muted-foreground"}>Data/Hora</span>
+            <span className={step >= 4 ? "text-primary" : "text-muted-foreground"}>Confirmar</span>
+          </div>
+        </div>
 
-            {selectedDate && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Escolha o Horário</CardTitle>
-                </CardHeader>
-                <CardContent>
+        <div className="max-w-4xl mx-auto">
+          {/* Step 1: Escolher Serviço */}
+          {step === 1 && (
+            <div className="space-y-4">
+              <CardHeader className="px-0">
+                <CardTitle className="text-2xl">Escolha o Serviço</CardTitle>
+                <CardDescription>Selecione o serviço que deseja realizar</CardDescription>
+              </CardHeader>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {servicos.map((servico) => (
+                  <Card
+                    key={servico.id}
+                    className={`cursor-pointer transition-all hover:shadow-lg ${
+                      selectedServico === servico.id
+                        ? "ring-2 ring-primary bg-primary/5"
+                        : ""
+                    }`}
+                    onClick={() => setSelectedServico(servico.id)}
+                  >
+                    <CardContent className="p-6">
+                      <div className="flex justify-between items-start mb-3">
+                        <h3 className="font-bold text-lg">{servico.nome}</h3>
+                        <Badge variant="secondary" className="text-base font-bold">
+                          R$ {servico.preco.toFixed(2)}
+                        </Badge>
+                      </div>
+                      {servico.descricao && (
+                        <p className="text-sm text-muted-foreground mb-3">
+                          {servico.descricao}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Clock className="h-4 w-4" />
+                        {servico.duracao} minutos
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Escolher Profissional */}
+          {step === 2 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-4 mb-6">
+                <Button variant="ghost" size="sm" onClick={() => setStep(1)}>
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Voltar
+                </Button>
+              </div>
+
+              <CardHeader className="px-0">
+                <CardTitle className="text-2xl">Escolha o Profissional</CardTitle>
+                <CardDescription>Selecione quem irá te atender</CardDescription>
+              </CardHeader>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {barbeiros.map((barbeiro) => {
+                  const avgRating = 4.8;
+
+                  return (
+                    <Card
+                      key={barbeiro.id}
+                      className={`cursor-pointer transition-all hover:shadow-lg ${
+                        selectedBarbeiro === barbeiro.id
+                          ? "ring-2 ring-primary bg-primary/5"
+                          : ""
+                      }`}
+                      onClick={() => setSelectedBarbeiro(barbeiro.id)}
+                    >
+                      <CardContent className="p-6 text-center">
+                        <Avatar className="h-24 w-24 mx-auto mb-4 border-4 border-primary/20">
+                          <AvatarImage src={barbeiro.foto_url || barbeiro.profiles?.avatar_url} />
+                          <AvatarFallback className="text-2xl bg-primary/10">
+                            {barbeiro.profiles?.nome?.[0]?.toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <h3 className="font-bold text-lg mb-2">{barbeiro.profiles?.nome}</h3>
+                        {barbeiro.especialidades && barbeiro.especialidades.length > 0 && (
+                          <p className="text-sm text-muted-foreground mb-3">
+                            {barbeiro.especialidades.join(", ")}
+                          </p>
+                        )}
+                        <div className="flex items-center justify-center gap-1 text-sm">
+                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                          <span className="font-semibold">{avgRating.toFixed(1)}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Escolher Data e Hora */}
+          {step === 3 && (
+            <div className="space-y-6">
+              <div className="flex items-center gap-4 mb-6">
+                <Button variant="ghost" size="sm" onClick={() => setStep(2)}>
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Voltar
+                </Button>
+              </div>
+
+              <CardHeader className="px-0">
+                <CardTitle className="text-2xl">Escolha Data e Horário</CardTitle>
+                <CardDescription>Selecione quando deseja ser atendido</CardDescription>
+              </CardHeader>
+
+              {/* Datas */}
+              <div>
+                <Label className="text-base font-semibold mb-3 block">Data</Label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+                  {getNextDates().map((date) => {
+                    const dateStr = format(date, "yyyy-MM-dd");
+                    const isSelected = selectedDate === dateStr;
+
+                    return (
+                      <Button
+                        key={dateStr}
+                        variant={isSelected ? "default" : "outline"}
+                        className={`h-auto py-4 flex flex-col gap-1 ${
+                          isSelected ? "gradient-primary" : ""
+                        }`}
+                        onClick={() => {
+                          setSelectedDate(dateStr);
+                          setSelectedTime("");
+                        }}
+                      >
+                        <span className="text-xs uppercase">
+                          {format(date, "EEE", { locale: ptBR })}
+                        </span>
+                        <span className="text-2xl font-bold">
+                          {format(date, "dd", { locale: ptBR })}
+                        </span>
+                        <span className="text-xs">
+                          {format(date, "MMM", { locale: ptBR })}
+                        </span>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Horários */}
+              {selectedDate && (
+                <div>
+                  <Label className="text-base font-semibold mb-3 block">Horário</Label>
                   {availableTimes.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">
-                      Nenhum horário disponível para esta data
-                    </p>
+                    <Card>
+                      <CardContent className="py-8 text-center">
+                        <Clock className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
+                        <p className="text-muted-foreground">
+                          Nenhum horário disponível nesta data
+                        </p>
+                      </CardContent>
+                    </Card>
                   ) : (
-                    <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
-                      {availableTimes.map(time => (
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                      {availableTimes.map((time) => (
                         <Button
                           key={time}
                           variant={selectedTime === time ? "default" : "outline"}
+                          className={`h-12 font-semibold ${
+                            selectedTime === time ? "gradient-primary" : ""
+                          }`}
                           onClick={() => setSelectedTime(time)}
                         >
                           {time}
@@ -509,89 +570,125 @@ const PublicBooking = () => {
                       ))}
                     </div>
                   )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 4: Confirmar */}
+          {step === 4 && (
+            <div className="space-y-6">
+              <div className="flex items-center gap-4 mb-6">
+                <Button variant="ghost" size="sm" onClick={() => setStep(3)}>
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Voltar
+                </Button>
+              </div>
+
+              <CardHeader className="px-0">
+                <CardTitle className="text-2xl">Confirmar Agendamento</CardTitle>
+                <CardDescription>Revise os detalhes antes de confirmar</CardDescription>
+              </CardHeader>
+
+              <Card className="bg-muted/50 border-2">
+                <CardContent className="p-6 space-y-4">
+                  <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0 w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Calendar className="h-6 w-6 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Serviço</p>
+                      <p className="font-bold text-lg">
+                        {servicos.find(s => s.id === selectedServico)?.nome}
+                      </p>
+                      <p className="text-sm text-primary font-semibold">
+                        R$ {servicos.find(s => s.id === selectedServico)?.preco.toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-4">
+                    <Avatar className="h-12 w-12">
+                      <AvatarImage src={barbeiros.find(b => b.id === selectedBarbeiro)?.foto_url} />
+                      <AvatarFallback>
+                        {barbeiros.find(b => b.id === selectedBarbeiro)?.profiles?.nome?.[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Profissional</p>
+                      <p className="font-bold text-lg">
+                        {barbeiros.find(b => b.id === selectedBarbeiro)?.profiles?.nome}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0 w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center">
+                      <Clock className="h-6 w-6 text-secondary" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Data e Horário</p>
+                      <p className="font-bold text-lg">
+                        {format(new Date(selectedDate), "dd 'de' MMMM", { locale: ptBR })}
+                      </p>
+                      <p className="text-sm font-semibold text-secondary">{selectedTime}</p>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
-            )}
 
-            <div className="flex gap-3">
-              <Button variant="outline" onClick={() => setStep(1)} className="flex-1">
-                Voltar
-              </Button>
-              <Button
-                onClick={() => setStep(3)}
-                disabled={!selectedDate || !selectedTime}
-                className="flex-1"
-                size="lg"
-              >
-                Continuar
-              </Button>
-            </div>
-          </div>
-        )}
+              <div>
+                <Label htmlFor="observacoes" className="text-base font-semibold">
+                  Observações (Opcional)
+                </Label>
+                <Textarea
+                  id="observacoes"
+                  placeholder="Alguma observação ou pedido especial?"
+                  value={observacoes}
+                  onChange={(e) => setObservacoes(e.target.value)}
+                  className="mt-2 min-h-24"
+                  maxLength={500}
+                  disabled={submitting}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  {observacoes.length}/500 caracteres
+                </p>
+              </div>
 
-        {/* Step 3: Dados do Cliente */}
-        {step === 3 && (
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Seus Dados</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="nome">Nome Completo *</Label>
-                  <Input
-                    id="nome"
-                    value={clientData.nome}
-                    onChange={(e) => setClientData({ ...clientData, nome: e.target.value })}
-                    placeholder="Seu nome"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={clientData.email}
-                    onChange={(e) => setClientData({ ...clientData, email: e.target.value })}
-                    placeholder="seu@email.com"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="telefone">Telefone</Label>
-                  <Input
-                    id="telefone"
-                    value={clientData.telefone}
-                    onChange={(e) => setClientData({ ...clientData, telefone: e.target.value })}
-                    placeholder="(11) 99999-9999"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="obs">Observações</Label>
-                  <Textarea
-                    id="obs"
-                    value={clientData.observacoes}
-                    onChange={(e) => setClientData({ ...clientData, observacoes: e.target.value })}
-                    placeholder="Alguma preferência ou observação?"
-                    rows={3}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="flex gap-3">
-              <Button variant="outline" onClick={() => setStep(2)} className="flex-1">
-                Voltar
-              </Button>
               <Button
                 onClick={handleBooking}
-                className="flex-1"
-                size="lg"
+                disabled={submitting}
+                className="w-full h-14 text-lg font-bold gradient-primary"
               >
-                Confirmar Agendamento
+                {submitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Confirmando...
+                  </>
+                ) : (
+                  <>
+                    <Check className="mr-2 h-5 w-5" />
+                    Confirmar Agendamento
+                  </>
+                )}
               </Button>
             </div>
-          </div>
-        )}
+          )}
+
+          {/* Navigation Buttons */}
+          {step < 4 && step > 0 && (
+            <div className="flex justify-end gap-3 mt-8">
+              <Button
+                onClick={() => setStep(step + 1)}
+                disabled={!canContinue()}
+                className="h-12 px-8 gradient-primary font-semibold"
+              >
+                Continuar
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
