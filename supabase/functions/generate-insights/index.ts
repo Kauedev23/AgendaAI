@@ -19,7 +19,7 @@ serve(async (req) => {
     }
 
     // Preparar prompt com dados do negócio
-    const prompt = `Você é um consultor de negócios especializado em barbearias. Analise os seguintes dados e gere 3-5 insights acionáveis e práticos para melhorar o negócio:
+    const prompt = `Você é um consultor de negócios. Analise os seguintes dados e gere 3-5 insights acionáveis e práticos para melhorar o negócio:
 
 DADOS DO NEGÓCIO:
 - Total de agendamentos este mês: ${agendamentos.total}
@@ -32,7 +32,7 @@ DADOS DO NEGÓCIO:
 SERVIÇOS MAIS POPULARES:
 ${servicosData.map((s: any) => `- ${s.nome}: ${s.quantidade} agendamentos (R$ ${s.faturamento.toFixed(2)})`).join('\n')}
 
-PERFORMANCE DOS BARBEIROS:
+PERFORMANCE DOS PROFISSIONAIS:
 ${barbeirosData.map((b: any) => `- ${b.nome}: ${b.agendamentos} atendimentos (R$ ${b.faturamento.toFixed(2)})`).join('\n')}
 
 Gere insights práticos e específicos, focando em:
@@ -63,14 +63,13 @@ Formato: retorne APENAS um array JSON com objetos no formato:
         messages: [
           {
             role: "system",
-            content: "Você é um consultor especializado em gestão de barbearias. Gere insights práticos e acionáveis baseados em dados reais."
+            content: "Você é um consultor especializado em gestão de negócios. Gere insights práticos e acionáveis baseados em dados reais."
           },
           {
             role: "user",
             content: prompt
           }
         ],
-        temperature: 0.7,
       }),
     });
 

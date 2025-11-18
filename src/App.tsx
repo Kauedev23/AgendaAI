@@ -14,6 +14,7 @@ import Barbers from "./pages/Barbers";
 import Services from "./pages/Services";
 import Appointments from "./pages/Appointments";
 import Reports from "./pages/Reports";
+import Overview from "./pages/Overview";
 import PublicBooking from "./pages/PublicBooking";
 import Subscription from "./pages/Subscription";
 import ManageSubscription from "./pages/ManageSubscription";
@@ -39,6 +40,7 @@ const App = () => (
           <Route path="/services" element={<Services />} />
           <Route path="/appointments" element={<Appointments />} />
           <Route path="/reports" element={<Reports />} />
+          <Route path="/overview" element={<Overview />} />
           <Route path="/subscription" element={<Subscription />} />
           <Route path="/manage-subscription" element={<ManageSubscription />} />
           <Route path="/:slug" element={<PublicBooking />} />
