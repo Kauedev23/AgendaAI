@@ -30,10 +30,10 @@ DADOS DO NEGÓCIO:
 - Ticket médio: R$ ${faturamento.ticketMedio.toFixed(2)}
 
 SERVIÇOS MAIS POPULARES:
-${servicosData.map((s: any) => `- ${s.nome}: ${s.quantidade} agendamentos (R$ ${s.faturamento.toFixed(2)})`).join('\n')}
+${servicosData.map((s: any) => `- ${s.nome}: ${s.quantidade} agendamentos (R$ ${(s.faturamento || 0).toFixed(2)})`).join('\n')}
 
 PERFORMANCE DOS PROFISSIONAIS:
-${barbeirosData.map((b: any) => `- ${b.nome}: ${b.agendamentos} atendimentos (R$ ${b.faturamento.toFixed(2)})`).join('\n')}
+${barbeirosData.map((b: any) => `- ${b.nome}: ${b.agendamentos} atendimentos (R$ ${(b.faturamento || 0).toFixed(2)})`).join('\n')}
 
 Gere insights práticos e específicos, focando em:
 1. Oportunidades de aumento de receita
