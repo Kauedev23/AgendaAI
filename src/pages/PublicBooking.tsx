@@ -65,15 +65,21 @@ const PublicBooking = () => {
 
     setUser(user);
 
-    // Buscar perfil
-    const { data: profileData } = await supabase
+    // Buscar perfil do cliente
+    const { data: profileData, error: profileError } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", user.id)
+      .eq("tipo", "cliente")
       .single();
+
+    if (profileError) {
+      console.error("Erro ao buscar perfil:", profileError);
+    }
 
     if (profileData) {
       setProfile(profileData);
+      console.log("Perfil do cliente carregado:", profileData);
     }
   };
 
@@ -100,7 +106,7 @@ const PublicBooking = () => {
       setBarbearia(barbeariasData);
 
       // Buscar barbeiros ativos
-      const { data: barbeirosData } = await supabase
+      const { data: barbeirosData, error: barbeirosError } = await supabase
         .from("barbeiros")
         .select(`
           *,
@@ -109,7 +115,13 @@ const PublicBooking = () => {
         .eq("barbearia_id", barbeariasData.id)
         .eq("ativo", true);
 
-      setBarbeiros(barbeirosData || []);
+      if (barbeirosError) {
+        console.error("Erro ao buscar barbeiros:", barbeirosError);
+        toast.error("Erro ao carregar profissionais");
+      } else {
+        console.log("Barbeiros carregados:", barbeirosData);
+        setBarbeiros(barbeirosData || []);
+      }
 
       // Buscar serviços ativos
       const { data: servicosData } = await supabase
