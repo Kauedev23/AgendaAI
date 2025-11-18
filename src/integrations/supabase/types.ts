@@ -85,6 +85,51 @@ export type Database = {
           },
         ]
       }
+      avaliacoes: {
+        Row: {
+          agendamento_id: string
+          barbeiro_id: string
+          cliente_id: string
+          comentario: string | null
+          created_at: string | null
+          id: string
+          nota: number
+        }
+        Insert: {
+          agendamento_id: string
+          barbeiro_id: string
+          cliente_id: string
+          comentario?: string | null
+          created_at?: string | null
+          id?: string
+          nota: number
+        }
+        Update: {
+          agendamento_id?: string
+          barbeiro_id?: string
+          cliente_id?: string
+          comentario?: string | null
+          created_at?: string | null
+          id?: string
+          nota?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "avaliacoes_agendamento_id_fkey"
+            columns: ["agendamento_id"]
+            isOneToOne: true
+            referencedRelation: "agendamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "avaliacoes_barbeiro_id_fkey"
+            columns: ["barbeiro_id"]
+            isOneToOne: false
+            referencedRelation: "barbeiros"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       barbearias: {
         Row: {
           admin_id: string | null
@@ -169,8 +214,11 @@ export type Database = {
           barbearia_id: string
           bio: string | null
           created_at: string | null
+          dias_funcionamento: string[] | null
           especialidades: string[] | null
           foto_url: string | null
+          horario_fim: string | null
+          horario_inicio: string | null
           id: string
           user_id: string
         }
@@ -179,8 +227,11 @@ export type Database = {
           barbearia_id: string
           bio?: string | null
           created_at?: string | null
+          dias_funcionamento?: string[] | null
           especialidades?: string[] | null
           foto_url?: string | null
+          horario_fim?: string | null
+          horario_inicio?: string | null
           id?: string
           user_id: string
         }
@@ -189,8 +240,11 @@ export type Database = {
           barbearia_id?: string
           bio?: string | null
           created_at?: string | null
+          dias_funcionamento?: string[] | null
           especialidades?: string[] | null
           foto_url?: string | null
+          horario_fim?: string | null
+          horario_inicio?: string | null
           id?: string
           user_id?: string
         }

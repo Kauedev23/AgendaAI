@@ -4,12 +4,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Calendar, Clock, User, Scissors } from "lucide-react";
+import { ArrowLeft, Calendar, Clock, User, Scissors, Star } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useBusinessTerminology } from "@/hooks/useBusinessTerminology";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
+import { AvaliarDialog } from "@/components/AvaliarDialog";
 
 const Appointments = () => {
   const navigate = useNavigate();
@@ -18,6 +19,8 @@ const Appointments = () => {
   const [loading, setLoading] = useState(true);
   const [agendamentos, setAgendamentos] = useState<any[]>([]);
   const [barbearia, setBarbearia] = useState<any>(null);
+  const [avaliarAgendamento, setAvaliarAgendamento] = useState<any>(null);
+  const [avaliacoesExistentes, setAvaliacoesExistentes] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadData();
@@ -74,6 +77,17 @@ const Appointments = () => {
         .order("hora", { ascending: true });
 
       setAgendamentos(agendamentosData || []);
+
+      // Buscar avaliações existentes
+      if (agendamentosData && agendamentosData.length > 0) {
+        const { data: avaliacoesData } = await supabase
+          .from("avaliacoes")
+          .select("agendamento_id")
+          .in("agendamento_id", agendamentosData.map(a => a.id));
+        
+        const avaliacoesSet = new Set(avaliacoesData?.map(a => a.agendamento_id) || []);
+        setAvaliacoesExistentes(avaliacoesSet);
+      }
     } catch (error) {
       console.error("Erro:", error);
     } finally {
@@ -208,12 +222,41 @@ const Appointments = () => {
                       Marcar como Concluído
                     </Button>
                   )}
+
+                  {agendamento.status === 'concluido' && !avaliacoesExistentes.has(agendamento.id) && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setAvaliarAgendamento(agendamento)}
+                      className="gap-2"
+                    >
+                      <Star className="h-4 w-4 text-yellow-500" />
+                      Avaliar Atendimento
+                    </Button>
+                  )}
+
+                  {agendamento.status === 'concluido' && avaliacoesExistentes.has(agendamento.id) && (
+                    <Badge variant="secondary" className="gap-1">
+                      <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />
+                      Avaliado
+                    </Badge>
+                  )}
                 </CardContent>
               </Card>
             ))}
           </div>
         )}
       </div>
+
+      <AvaliarDialog
+        open={!!avaliarAgendamento}
+        agendamento={avaliarAgendamento}
+        onClose={() => setAvaliarAgendamento(null)}
+        onSuccess={() => {
+          loadData();
+          setAvaliarAgendamento(null);
+        }}
+      />
     </div>
   );
 };
