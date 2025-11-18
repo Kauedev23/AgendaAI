@@ -1,9 +1,8 @@
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AvaliacaoStars } from "./AvaliacaoStars";
-import { Clock, DollarSign, Scissors, Edit } from "lucide-react";
+import { Star, Edit } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 
 interface BarbeiroCardProps {
   barbeiro: {
@@ -28,115 +27,124 @@ interface BarbeiroCardProps {
 
 export const BarbeiroCard = ({ barbeiro, stats, onEditHorario, onEdit }: BarbeiroCardProps) => {
   const diasMap: Record<string, string> = {
-    segunda: "Seg",
-    terca: "Ter",
-    quarta: "Qua",
-    quinta: "Qui",
-    sexta: "Sex",
-    sabado: "Sáb",
-    domingo: "Dom",
+    segunda: "Segunda",
+    terca: "Terça",
+    quarta: "Quarta",
+    quinta: "Quinta",
+    sexta: "Sexta",
+    sabado: "Sábado",
+    domingo: "Domingo",
   };
 
-  const diasResumidos = barbeiro.dias_funcionamento
-    ?.map((dia) => diasMap[dia] || dia)
-    .join(", ");
+  const getDiasTexto = () => {
+    if (!barbeiro.dias_funcionamento || barbeiro.dias_funcionamento.length === 0) {
+      return "Não definido";
+    }
+    
+    const dias = barbeiro.dias_funcionamento;
+    const diasOrdenados = ["segunda", "terca", "quarta", "quinta", "sexta", "sabado", "domingo"];
+    const diasFiltrados = diasOrdenados.filter(dia => dias.includes(dia));
+    
+    if (diasFiltrados.length === 7) {
+      return "Segunda à domingo";
+    } else if (diasFiltrados.length === 6 && !dias.includes("domingo")) {
+      return "Segunda à sábado";
+    } else if (diasFiltrados.length === 5 && !dias.includes("sabado") && !dias.includes("domingo")) {
+      return "Segunda à sexta";
+    } else {
+      return diasFiltrados.map(dia => diasMap[dia]).join(", ");
+    }
+  };
 
   const formatTime = (time: string) => {
-    if (!time) return "";
-    return time.substring(0, 5);
+    if (!time) return "00h00";
+    const [hours, minutes] = time.split(":");
+    return `${hours}h${minutes}`;
   };
 
   return (
-    <Card className="overflow-hidden hover:shadow-lg transition-shadow">
-      <div className="bg-gradient-to-br from-teal-500 to-teal-600 p-6 text-white relative">
+    <Card 
+      className="overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer border-0"
+      onClick={onEdit}
+    >
+      <div className="bg-gradient-to-br from-cyan-500 to-cyan-600 p-6 text-white relative">
         {barbeiro.ativo && (
-          <Badge className="absolute top-3 right-3 bg-green-500 hover:bg-green-600 border-0">
+          <Badge className="absolute top-4 right-4 bg-green-500 hover:bg-green-500 border-0 text-white font-bold text-sm px-3 py-1">
             Ativo
           </Badge>
         )}
         
-        <div className="flex items-start gap-4 mb-4">
-          <Avatar className="h-20 w-20 border-4 border-white shadow-lg">
+        <div className="flex items-start gap-4 mb-6">
+          <Avatar className="h-24 w-24 border-4 border-white shadow-xl flex-shrink-0">
             <AvatarImage src={barbeiro.foto_url || ""} alt={barbeiro.nome} />
-            <AvatarFallback className="bg-teal-700 text-white text-xl">
+            <AvatarFallback className="bg-cyan-700 text-white text-2xl font-bold">
               {barbeiro.nome?.substring(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           
-          <div className="flex-1 min-w-0">
-            <h3 className="text-2xl font-bold truncate mb-1">{barbeiro.nome}</h3>
-            <div className="flex items-center gap-1">
-              <AvaliacaoStars 
-                rating={stats.avaliacao_media} 
-                size={18}
-                showCount
-                count={stats.total_avaliacoes}
-              />
+          <div className="flex-1 min-w-0 pt-1">
+            <h3 className="text-3xl font-bold mb-3 text-white">{barbeiro.nome}</h3>
+            
+            <div className="space-y-1">
+              <h4 className="text-blue-900 font-bold text-base">
+                Horário de atendimento
+              </h4>
+              <p className="text-white text-base font-medium">
+                {getDiasTexto()}
+              </p>
+              <p className="text-white text-base font-bold">
+                {formatTime(barbeiro.horario_inicio)} às {formatTime(barbeiro.horario_fim)}
+              </p>
             </div>
           </div>
         </div>
 
-        <div className="space-y-1 text-sm">
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4" />
-            <span className="font-medium">Horário de atendimento</span>
-          </div>
-          <p className="pl-6">{diasResumidos || "Não definido"}</p>
-          <div className="flex items-center justify-between pl-6">
-            <span>
-              {formatTime(barbeiro.horario_inicio)} às {formatTime(barbeiro.horario_fim)}
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onEditHorario}
-              className="text-white hover:bg-white/20 h-7 px-2"
-            >
-              <Edit className="h-3 w-3 mr-1" />
-              Editar
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      <CardContent className="p-4">
-        <div className="grid grid-cols-3 gap-3">
-          <div className="text-center p-3 bg-green-50 rounded-lg">
-            <DollarSign className="h-5 w-5 mx-auto mb-1 text-green-600" />
-            <div className="text-lg font-bold text-green-700">
-              R$ {stats.faturamento.toFixed(2)}
-            </div>
-            <div className="text-xs text-muted-foreground">Faturamento</div>
+        <div className="grid grid-cols-3 gap-4 pt-4 border-t border-white/20">
+          <div className="text-center">
+            <p className="text-white/90 text-xs font-semibold mb-1">Faturamento</p>
+            <p className="text-white text-xl font-bold">
+              R$ {stats.faturamento.toFixed(0)}
+            </p>
           </div>
 
-          <div className="text-center p-3 bg-blue-50 rounded-lg">
-            <Scissors className="h-5 w-5 mx-auto mb-1 text-blue-600" />
-            <div className="text-lg font-bold text-blue-700">
+          <div className="text-center border-l border-r border-white/20">
+            <p className="text-white/90 text-xs font-semibold mb-1">Serviços Realizados</p>
+            <p className="text-white text-xl font-bold">
               {stats.servicos_realizados}
-            </div>
-            <div className="text-xs text-muted-foreground">Serviços</div>
+            </p>
           </div>
 
-          <div className="text-center p-3 bg-yellow-50 rounded-lg">
-            <div className="flex justify-center mb-1">
-              <AvaliacaoStars rating={stats.avaliacao_media} size={16} />
+          <div className="text-center">
+            <p className="text-white/90 text-xs font-semibold mb-1">Avaliação clientes</p>
+            <div className="flex justify-center gap-1 mt-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Star
+                  key={star}
+                  className={
+                    star <= Math.round(stats.avaliacao_media)
+                      ? "fill-yellow-400 text-yellow-400"
+                      : "fill-white/40 text-white/40"
+                  }
+                  size={24}
+                />
+              ))}
             </div>
-            <div className="text-lg font-bold text-yellow-700">
-              {stats.avaliacao_media.toFixed(1)}
-            </div>
-            <div className="text-xs text-muted-foreground">Avaliação</div>
           </div>
         </div>
-
+        
         <Button
-          variant="outline"
-          className="w-full mt-4"
-          onClick={onEdit}
+          variant="ghost"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            onEditHorario();
+          }}
+          className="absolute top-4 left-4 text-white hover:bg-white/20 h-8 px-3 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
         >
-          <Edit className="h-4 w-4 mr-2" />
-          Editar Profissional
+          <Edit className="h-3 w-3 mr-1" />
+          Editar Horário
         </Button>
-      </CardContent>
+      </div>
     </Card>
   );
 };
