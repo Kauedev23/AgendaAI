@@ -34,10 +34,9 @@ const ClientAuth = () => {
   const navigate = useNavigate();
   const location = useLocation();
   
-  // Extrair slug da URL de origem ou do pathname atual
+  // Extrair slug da URL de origem
   const from = (location.state as any)?.from;
-  const slugFromPath = from?.split('/')[1] || window.location.pathname.split('/')[1];
-  const redirectPath = slugFromPath && slugFromPath !== 'client-auth' ? `/${slugFromPath}` : '/';
+  const redirectPath = from || '/';
 
   const formatPhone = (value: string) => {
     const numbers = value.replace(/\D/g, "");
