@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Users, Scissors, TrendingUp, LogOut, CreditCard, AlertCircle, Clock, Home } from "lucide-react";
+import { Calendar, Users, TrendingUp, LogOut, CreditCard, AlertCircle, Clock, Home, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 import { useBusinessTerminology } from "@/hooks/useBusinessTerminology";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
@@ -138,7 +138,7 @@ const Dashboard = () => {
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-3">
-              <Scissors className="h-8 w-8 text-cyan-500" />
+              <Calendar className="h-8 w-8 text-cyan-500" />
               <div>
                 <h1 className="text-2xl font-bold">Agenda AI</h1>
                 <p className="text-sm text-muted-foreground">Dashboard</p>
@@ -287,14 +287,14 @@ const Dashboard = () => {
           <Card className="card-hover">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Barbeiros Ativos
+                Profissionais Ativos
               </CardTitle>
-              <Scissors className="h-5 w-5 text-secondary" />
+              <Users className="h-5 w-5 text-secondary" />
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-primary">{stats.barbeiros}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                {stats.barbeiros === 0 ? 'Cadastre sua equipe' : 'profissionais ativos'}
+                {stats.barbeiros === 0 ? 'Adicione profissionais' : 'na equipe'}
               </p>
             </CardContent>
           </Card>
@@ -321,7 +321,7 @@ const Dashboard = () => {
             <CardHeader>
               <CardTitle>Acesso Rápido</CardTitle>
               <CardDescription>
-                Gerencie sua barbearia
+                Gerencie seu negócio
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -342,12 +342,12 @@ const Dashboard = () => {
                   <span className="text-xs text-muted-foreground">Cortes, barba e preços</span>
                 </Button>
                 <Button 
-                  className="h-auto py-4 flex flex-col items-start" 
+                  className="h-auto py-4 flex flex-col items-start cursor-pointer hover:bg-accent/10 transition-all" 
                   variant="outline"
                   onClick={() => navigate("/barbers")}
                 >
-                  <span className="font-semibold mb-1">Barbeiros</span>
-                  <span className="text-xs text-muted-foreground">Sua equipe de profissionais</span>
+                  <span className="font-semibold mb-1">Profissionais</span>
+                  <span className="text-xs text-muted-foreground">Sua equipe</span>
                 </Button>
                 <Button 
                   className="h-auto py-4 flex flex-col items-start" 
@@ -358,12 +358,14 @@ const Dashboard = () => {
                   <span className="text-xs text-muted-foreground">Gerencie os horários</span>
                 </Button>
                 <Button 
-                  className="h-auto py-4 flex flex-col items-start" 
-                  variant="outline"
-                  onClick={() => navigate("/reports")}
+                  className="h-auto py-4 flex flex-col items-start bg-primary hover:bg-primary/90 text-white cursor-pointer" 
+                  onClick={() => navigate("/overview")}
                 >
-                  <span className="font-semibold mb-1">Relatórios</span>
-                  <span className="text-xs text-muted-foreground">Insights com IA</span>
+                  <div className="flex items-center gap-2 mb-1">
+                    <BarChart3 className="h-5 w-5" />
+                    <span className="font-semibold">Visão Geral</span>
+                  </div>
+                  <span className="text-xs text-white/80">Dashboards e insights com IA</span>
                 </Button>
                 <Button 
                   className="h-auto py-4 flex flex-col items-start" 
