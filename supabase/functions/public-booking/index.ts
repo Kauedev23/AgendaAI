@@ -145,15 +145,49 @@ serve(async (req) => {
         success: !!created.data?.user, 
         error: created.error 
       });
-      if (created.error || !created.data?.user) {
-        console.error("❌ Failed to create user:", created.error);
-        return new Response(JSON.stringify({ error: created.error?.message || "Falha ao criar usuário" }), {
+      
+      if (created.error) {
+        // Se o erro for email_exists, buscar o usuário existente
+        if (created.error.message?.includes("email address has already been registered")) {
+          console.log("📧 Email já existe, buscando usuário existente...");
+          const { data: existingUser, error: getUserError } = await supabaseAdmin.auth.admin.listUsers();
+          
+          if (getUserError) {
+            console.error("❌ Failed to list users:", getUserError);
+            return new Response(JSON.stringify({ error: "Falha ao buscar usuário" }), {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+          
+          const foundUser = existingUser.users.find(u => u.email === email);
+          if (foundUser) {
+            console.log("✅ Found existing user:", foundUser.id);
+            userId = foundUser.id;
+          } else {
+            console.error("❌ User not found after email_exists error");
+            return new Response(JSON.stringify({ error: "Falha ao localizar usuário" }), {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+        } else {
+          console.error("❌ Failed to create user:", created.error);
+          return new Response(JSON.stringify({ error: created.error.message || "Falha ao criar usuário" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      } else if (created.data?.user) {
+        userId = created.data.user.id;
+        console.log("✅ User created:", userId);
+      } else {
+        console.error("❌ No user data returned");
+        return new Response(JSON.stringify({ error: "Falha ao criar usuário" }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      userId = created.data.user.id;
-      console.log("✅ User created:", userId);
     }
 
     // 3) Upsert no perfil (garantir dados básicos)
