@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Users, Scissors, TrendingUp, LogOut, CreditCard, AlertCircle, Clock } from "lucide-react";
+import { Calendar, Users, Scissors, TrendingUp, LogOut, CreditCard, AlertCircle, Clock, Home } from "lucide-react";
 import { toast } from "sonner";
 import { useBusinessTerminology } from "@/hooks/useBusinessTerminology";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
@@ -132,31 +132,25 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-muted">
+    <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="bg-card border-b">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
+      <header className="border-b p-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-3">
-              <Scissors className="h-8 w-8 text-secondary" />
+              <Scissors className="h-8 w-8 text-cyan-500" />
               <div>
-                <h1 className="text-2xl font-bold text-primary">Agenda AI</h1>
+                <h1 className="text-2xl font-bold">Agenda AI</h1>
                 <p className="text-sm text-muted-foreground">Dashboard</p>
               </div>
               {subscriptionData && (
                 <div className="ml-4 px-3 py-1 rounded-full text-xs font-medium border">
                   {subscriptionData.planoAtivo ? (
-                    <span className="text-green-600 dark:text-green-400 border-green-200 dark:border-green-800">
-                      ✓ Plano Ativo
-                    </span>
+                    <span className="text-green-600">✓ Plano Ativo</span>
                   ) : subscriptionData.diasRestantes > 0 ? (
-                    <span className="text-yellow-600 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800">
-                      Trial - {subscriptionData.diasRestantes}d
-                    </span>
+                    <span className="text-yellow-600">Trial - {subscriptionData.diasRestantes}d</span>
                   ) : (
-                    <span className="text-red-600 dark:text-red-400 border-red-200 dark:border-red-800">
-                      Expirado
-                    </span>
+                    <span className="text-red-600">Expirado</span>
                   )}
                 </div>
               )}
@@ -176,10 +170,10 @@ const Dashboard = () => {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
+      <main className="max-w-7xl mx-auto px-4 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-primary mb-2">
+          <h2 className="text-3xl font-bold mb-2">
             Olá, {profile?.nome?.split(' ')[0]}! 👋
           </h2>
           <p className="text-muted-foreground">

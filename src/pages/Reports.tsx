@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ArrowLeft, TrendingUp, DollarSign, Calendar, Sparkles, Loader2 } from "lucide-react";
+import { ArrowLeft, TrendingUp, DollarSign, Calendar, Sparkles, Loader2, Home } from "lucide-react";
 import { toast } from "sonner";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 
@@ -161,17 +161,24 @@ const Reports = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-muted">
-      <div className="container mx-auto px-6 py-8">
-        <Button variant="ghost" onClick={() => navigate("/dashboard")} className="mb-6">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Voltar ao Dashboard
-        </Button>
-
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-primary mb-2">Relatórios e Insights</h1>
-          <p className="text-muted-foreground">Análise detalhada do seu negócio</p>
-        </div>
+    <div className="min-h-screen bg-white">
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        <header className="mb-6 flex items-center justify-between gap-4">
+          <Button
+            variant="ghost"
+            onClick={() => navigate("/dashboard")}
+            className="gap-2 hover:bg-transparent p-0"
+          >
+            <Home className="h-6 w-6" />
+            <span className="text-lg">Voltar</span>
+          </Button>
+          
+          <h1 className="text-3xl font-bold flex-1 text-center">
+            Relatórios e Insights
+          </h1>
+          
+          <div className="w-24"></div>
+        </header>
 
         {/* Estatísticas Gerais */}
         <div className="grid md:grid-cols-3 gap-6 mb-8">
