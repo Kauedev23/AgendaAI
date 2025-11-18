@@ -15,6 +15,7 @@ import Services from "./pages/Services";
 import Appointments from "./pages/Appointments";
 import Reports from "./pages/Reports";
 import Overview from "./pages/Overview";
+import ClientAuth from "./pages/ClientAuth";
 import PublicBooking from "./pages/PublicBooking";
 import Subscription from "./pages/Subscription";
 import ManageSubscription from "./pages/ManageSubscription";
@@ -43,6 +44,7 @@ const App = () => (
           <Route path="/overview" element={<Overview />} />
           <Route path="/subscription" element={<Subscription />} />
           <Route path="/manage-subscription" element={<ManageSubscription />} />
+          <Route path="/client-auth" element={<ClientAuth />} />
           <Route path="/:slug" element={<PublicBooking />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
