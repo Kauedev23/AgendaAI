@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { InstallPWA } from "@/components/InstallPWA";
 import { UpdatePrompt } from "@/components/UpdatePrompt";
+import { NotificationManager } from "@/components/NotificationManager";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -30,6 +31,7 @@ const App = () => (
       <Sonner />
       <InstallPWA />
       <UpdatePrompt />
+      <NotificationManager />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Landing />} />
