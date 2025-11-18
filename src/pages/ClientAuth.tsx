@@ -33,7 +33,11 @@ const ClientAuth = () => {
   });
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as any)?.from || "/";
+  
+  // Extrair slug da URL de origem ou do pathname atual
+  const from = (location.state as any)?.from;
+  const slugFromPath = from?.split('/')[1] || window.location.pathname.split('/')[1];
+  const redirectPath = slugFromPath && slugFromPath !== 'client-auth' ? `/${slugFromPath}` : '/';
 
   const formatPhone = (value: string) => {
     const numbers = value.replace(/\D/g, "");
@@ -84,7 +88,7 @@ const ClientAuth = () => {
           }
 
           toast.success(`Bem-vindo de volta, ${existingProfile.nome}!`);
-          navigate(from, { replace: true });
+          navigate(redirectPath, { replace: true });
         } catch (error: any) {
           toast.error("Erro ao fazer login");
           console.error(error);
@@ -168,7 +172,11 @@ const ClientAuth = () => {
       }
 
       toast.success("Conta criada com sucesso!");
-      navigate(from, { replace: true });
+      
+      // Esperar um pouco para garantir que a sessão seja estabelecida
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      navigate(redirectPath, { replace: true });
     } catch (error: any) {
       toast.error(error.message || "Erro ao criar conta");
       console.error(error);
