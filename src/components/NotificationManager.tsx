@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Bell, BellOff } from "lucide-react";
+import { Bell } from "lucide-react";
 import { useNotifications } from "@/hooks/useNotifications";
 
 export const NotificationManager = () => {

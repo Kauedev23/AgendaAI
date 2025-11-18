@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 export const useNotifications = () => {
