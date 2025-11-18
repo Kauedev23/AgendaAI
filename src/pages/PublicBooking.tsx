@@ -105,22 +105,40 @@ const PublicBooking = () => {
 
       setBarbearia(barbeariasData);
 
-      // Buscar barbeiros ativos
-      const { data: barbeirosData, error: barbeirosError } = await supabase
-        .from("barbeiros")
-        .select(`
-          *,
-          profiles:user_id(nome, avatar_url)
-        `)
-        .eq("barbearia_id", barbeariasData.id)
-        .eq("ativo", true);
+      // Buscar profissionais públicos via função RPC (evita RLS do profiles)
+      const { data: publicBarbers, error: rpcError } = await supabase
+        .rpc("get_public_barbers", { _slug: String(slug) });
 
-      if (barbeirosError) {
-        console.error("Erro ao buscar barbeiros:", barbeirosError);
-        toast.error("Erro ao carregar profissionais");
+      if (rpcError) {
+        console.error("Erro RPC get_public_barbers:", rpcError);
+      }
+
+      if (publicBarbers && publicBarbers.length > 0) {
+        // Normaliza no mesmo formato esperado pelo UI (profiles.nome, avatar_url)
+        const normalized = publicBarbers.map((b: any) => ({
+          id: b.id,
+          foto_url: b.foto_url,
+          especialidades: b.especialidades,
+          bio: b.bio,
+          profiles: { nome: b.nome, avatar_url: b.foto_url },
+        }));
+        console.log("Barbeiros (RPC) carregados:", normalized);
+        setBarbeiros(normalized);
       } else {
-        console.log("Barbeiros carregados:", barbeirosData);
-        setBarbeiros(barbeirosData || []);
+        // Fallback: tenta consulta direta (pode retornar profiles nulo por RLS)
+        const { data: barbeirosData, error: barbeirosError } = await supabase
+          .from("barbeiros")
+          .select(`*, profiles:user_id(nome, avatar_url)`) 
+          .eq("barbearia_id", barbeariasData.id)
+          .eq("ativo", true);
+
+        if (barbeirosError) {
+          console.error("Erro ao buscar barbeiros:", barbeirosError);
+          toast.error("Erro ao carregar profissionais");
+        } else {
+          console.log("Barbeiros (fallback) carregados:", barbeirosData);
+          setBarbeiros(barbeirosData || []);
+        }
       }
 
       // Buscar serviços ativos
