@@ -121,7 +121,7 @@ const Landing = () => {
         <div className="container mx-auto px-6 py-24 relative z-10">
           <div className="max-w-4xl mx-auto text-center">
             <h1 className="text-5xl md:text-7xl font-bold mb-6 animate-in fade-in slide-in-from-bottom-4 duration-1000">
-              O Sistema de Agendamento que o seu Negócio Merece
+              O Sistema de Agendamento que o seu Negócio Merece!
             </h1>
             <p className="text-xl md:text-2xl mb-8 text-white/90 animate-in fade-in slide-in-from-bottom-5 duration-1000 delay-200">
               Modernize seu negócio com agendamento online, gestão completa e experiência premium para seus clientes
