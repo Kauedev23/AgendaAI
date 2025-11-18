@@ -69,20 +69,41 @@ serve(async (req) => {
       });
     }
 
-    // 2) Encontrar ou criar cliente por email (via tabela profiles com service role)
+    // 2) Encontrar ou criar cliente por telefone ou email
     let userId: string | null = null;
 
-    const { data: existingProfile, error: findProfileErr } = await supabaseAdmin
-      .from("profiles")
-      .select("id")
-      .eq("email", email)
-      .maybeSingle();
+    // Buscar por telefone primeiro (mais específico para clientes)
+    let existingProfile = null;
+    if (telefone) {
+      const { data: profileByPhone } = await supabaseAdmin
+        .from("profiles")
+        .select("id")
+        .eq("telefone", telefone)
+        .eq("tipo", "cliente")
+        .maybeSingle();
+      
+      if (profileByPhone) {
+        existingProfile = profileByPhone;
+      }
+    }
 
-    if (findProfileErr) {
-      return new Response(JSON.stringify({ error: "Falha ao buscar perfil" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // Se não encontrou por telefone, buscar por email
+    if (!existingProfile) {
+      const { data: profileByEmail, error: findProfileErr } = await supabaseAdmin
+        .from("profiles")
+        .select("id")
+        .eq("email", email)
+        .eq("tipo", "cliente")
+        .maybeSingle();
+
+      if (findProfileErr) {
+        return new Response(JSON.stringify({ error: "Falha ao buscar perfil" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      existingProfile = profileByEmail;
     }
 
     if (existingProfile) {

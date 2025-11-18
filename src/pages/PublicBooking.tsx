@@ -191,11 +191,14 @@ const PublicBooking = () => {
     try {
       const { error } = await supabase.functions.invoke("public-booking", {
         body: {
-          barbearia_id: barbearia.id,
-          barbeiro_id: selectedBarbeiro,
-          servico_id: selectedServico,
-          data: selectedDate,
-          hora: selectedTime,
+          barbeariaId: barbearia.id,
+          barbeiroId: selectedBarbeiro,
+          servicoId: selectedServico,
+          date: selectedDate,
+          time: selectedTime,
+          nome: profile?.nome || user.user_metadata?.nome || "",
+          email: profile?.email || user.email || "",
+          telefone: profile?.telefone || user.user_metadata?.telefone || "",
           observacoes: observacoes.trim() || null,
         },
       });
