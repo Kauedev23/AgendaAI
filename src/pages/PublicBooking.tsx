@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { format, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { z } from "zod";
+import { useNotifications } from "@/hooks/useNotifications";
 
 const bookingSchema = z.object({
   observacoes: z.string().max(500, "Observações muito longas").optional(),
@@ -40,6 +41,7 @@ const PublicBooking = () => {
   const [phoneLoading, setPhoneLoading] = useState(false);
   const [showNameInput, setShowNameInput] = useState(false);
   const [clienteName, setClienteName] = useState("");
+  const { scheduleAppointmentReminder, showNotification } = useNotifications();
 
   useEffect(() => { loadBarbearia(); }, [slug]);
   useEffect(() => { if (selectedBarbeiro && selectedDate) loadAvailableTimes(); }, [selectedBarbeiro, selectedDate, selectedServico]);
@@ -263,6 +265,24 @@ const PublicBooking = () => {
       if (error || data?.error) { 
         toast.error(data?.error || "Erro ao criar agendamento"); 
         return; 
+      }
+      
+      // Agendar lembrete de notificação
+      const barbeiroInfo = barbeiros.find(b => b.id === selectedBarbeiro);
+      if (data?.agendamentoId) {
+        scheduleAppointmentReminder(
+          data.agendamentoId,
+          selectedDate,
+          selectedTime,
+          barbearia.nome,
+          barbeiroInfo?.nome || "Profissional"
+        );
+        
+        // Mostra notificação imediata de confirmação
+        showNotification("Agendamento Confirmado! 🎉", {
+          body: `Seu horário está marcado para ${format(new Date(selectedDate), "dd/MM/yyyy")} às ${selectedTime}`,
+          tag: `booking-confirmed-${data.agendamentoId}`,
+        });
       }
       
       toast.success("Agendamento realizado com sucesso!"); 
