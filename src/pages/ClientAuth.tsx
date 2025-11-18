@@ -67,19 +67,18 @@ const ClientAuth = () => {
 
       if (existingProfile) {
         // Cliente já existe - fazer login automático
-        // Como não temos auth por telefone direto no Supabase, 
-        // vamos criar/atualizar um usuário com email baseado no telefone
         const emailFromPhone = `${telefone.replace(/\D/g, "")}@cliente.app`;
         
         try {
           // Tentar fazer login
           const { error: signInError } = await supabase.auth.signInWithPassword({
             email: emailFromPhone,
-            password: telefone.replace(/\D/g, ""), // Usar telefone como senha
+            password: telefone.replace(/\D/g, ""),
           });
 
           if (signInError) {
-            toast.error("Erro ao fazer login");
+            toast.error("Erro ao fazer login. Tente novamente.");
+            console.error(signInError);
             setLoading(false);
             return;
           }
@@ -130,6 +129,7 @@ const ClientAuth = () => {
           data: {
             nome: clientData.nome,
             tipo: "cliente",
+            telefone: telefone,
           },
         },
       });
