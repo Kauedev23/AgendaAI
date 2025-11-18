@@ -14,6 +14,8 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
+    console.log("📥 Request body:", JSON.stringify(body, null, 2));
+    
     const {
       barbeariaId,
       barbeiroId,
@@ -26,7 +28,18 @@ serve(async (req) => {
       observacoes,
     } = body || {};
 
+    console.log("🔍 Validating params...", {
+      barbeariaId: !!barbeariaId,
+      barbeiroId: !!barbeiroId,
+      servicoId: !!servicoId,
+      date: !!date,
+      time: !!time,
+      nome: !!nome,
+      email: !!email
+    });
+
     if (!barbeariaId || !barbeiroId || !servicoId || !date || !time || !nome || !email) {
+      console.error("❌ Missing required params");
       return new Response(JSON.stringify({ error: "Parâmetros obrigatórios ausentes" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -41,6 +54,7 @@ serve(async (req) => {
     });
 
     // 1) Validar relacionamento barbeiro/serviço/barbearia
+    console.log("🔍 Fetching barbeiro...", { barbeiroId, barbeariaId });
     const { data: barbeiro, error: barbeiroErr } = await supabaseAdmin
       .from("barbeiros")
       .select("id, barbearia_id, ativo")
@@ -48,13 +62,17 @@ serve(async (req) => {
       .eq("barbearia_id", barbeariaId)
       .maybeSingle();
 
+    console.log("👤 Barbeiro result:", { barbeiro, error: barbeiroErr });
+
     if (barbeiroErr || !barbeiro || barbeiro.ativo === false) {
+      console.error("❌ Invalid barbeiro");
       return new Response(JSON.stringify({ error: "Barbeiro inválido" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    console.log("🔍 Fetching servico...", { servicoId, barbeariaId });
     const { data: servico, error: servicoErr } = await supabaseAdmin
       .from("servicos")
       .select("id, barbearia_id, duracao")
@@ -62,7 +80,10 @@ serve(async (req) => {
       .eq("barbearia_id", barbeariaId)
       .maybeSingle();
 
+    console.log("💈 Servico result:", { servico, error: servicoErr });
+
     if (servicoErr || !servico) {
+      console.error("❌ Invalid servico");
       return new Response(JSON.stringify({ error: "Serviço inválido" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -70,6 +91,7 @@ serve(async (req) => {
     }
 
     // 2) Encontrar ou criar cliente por telefone ou email
+    console.log("🔍 Looking for existing client...", { email, telefone });
     let userId: string | null = null;
 
     // Buscar por telefone primeiro (mais específico para clientes)
@@ -82,6 +104,7 @@ serve(async (req) => {
         .eq("tipo", "cliente")
         .maybeSingle();
       
+      console.log("📞 Profile by phone:", profileByPhone);
       if (profileByPhone) {
         existingProfile = profileByPhone;
       }
@@ -107,8 +130,10 @@ serve(async (req) => {
     }
 
     if (existingProfile) {
+      console.log("✅ Found existing profile:", existingProfile.id);
       userId = existingProfile.id;
     } else {
+      console.log("➕ Creating new user...");
       const tempPassword = crypto.randomUUID();
       const created = await supabaseAdmin.auth.admin.createUser({
         email,
@@ -116,13 +141,19 @@ serve(async (req) => {
         email_confirm: true,
         user_metadata: { nome, tipo: "cliente", telefone },
       });
+      console.log("👤 User creation result:", { 
+        success: !!created.data?.user, 
+        error: created.error 
+      });
       if (created.error || !created.data?.user) {
+        console.error("❌ Failed to create user:", created.error);
         return new Response(JSON.stringify({ error: created.error?.message || "Falha ao criar usuário" }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       userId = created.data.user.id;
+      console.log("✅ User created:", userId);
     }
 
     // 3) Upsert no perfil (garantir dados básicos)
@@ -155,6 +186,15 @@ serve(async (req) => {
     }
 
     // 5) Criar agendamento
+    console.log("📝 Creating agendamento...", {
+      barbearia_id: barbeariaId,
+      barbeiro_id: barbeiroId,
+      servico_id: servicoId,
+      cliente_id: userId,
+      data: date,
+      hora: time
+    });
+
     const { data: inserted, error: insertErr } = await supabaseAdmin
       .from("agendamentos")
       .insert({
@@ -170,13 +210,20 @@ serve(async (req) => {
       .select("id")
       .maybeSingle();
 
+    console.log("📅 Agendamento result:", { inserted, error: insertErr });
+
     if (insertErr || !inserted) {
-      return new Response(JSON.stringify({ error: "Falha ao criar agendamento" }), {
+      console.error("❌ Failed to create agendamento:", insertErr);
+      return new Response(JSON.stringify({ 
+        error: "Falha ao criar agendamento",
+        details: insertErr?.message 
+      }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    console.log("✅ Agendamento created successfully:", inserted.id);
     return new Response(JSON.stringify({ ok: true, agendamentoId: inserted.id }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
