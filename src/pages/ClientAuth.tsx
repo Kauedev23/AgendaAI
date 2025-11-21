@@ -57,49 +57,54 @@ const ClientAuth = () => {
       const validation = z.string().trim().min(14).safeParse(telefone);
       if (!validation.success) {
         toast.error("Por favor, insira um telefone válido");
-        setLoading(false);
         return;
       }
 
       // Verificar se já existe usuário com este telefone
-      const { data: existingProfile } = await supabase
+      const { data: existingProfile, error: profileError } = await supabase
         .from("profiles")
         .select("*")
         .eq("telefone", telefone)
         .eq("tipo", "cliente")
         .maybeSingle();
 
+      if (profileError) {
+        console.error("Erro ao buscar perfil:", profileError);
+        toast.error("Erro ao verificar cadastro");
+        return;
+      }
+
       if (existingProfile) {
         // Cliente já existe - fazer login automático
         const emailFromPhone = `${telefone.replace(/\D/g, "")}@cliente.app`;
         
-        try {
-          // Tentar fazer login
-          const { error: signInError } = await supabase.auth.signInWithPassword({
-            email: emailFromPhone,
-            password: telefone.replace(/\D/g, ""),
-          });
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: emailFromPhone,
+          password: telefone.replace(/\D/g, ""),
+        });
 
-          if (signInError) {
-            toast.error("Erro ao fazer login. Tente novamente.");
-            console.error(signInError);
-            setLoading(false);
-            return;
-          }
-
-          toast.success(`Bem-vindo de volta, ${existingProfile.nome}!`);
-          navigate(redirectPath, { replace: true });
-        } catch (error: unknown) {
-          toast.error("Erro ao fazer login");
-          console.error(error);
+        if (signInError) {
+          console.error("Erro ao fazer login:", signInError);
+          toast.error("Erro ao fazer login. Tente novamente.");
+          return;
         }
+
+        toast.success(`Bem-vindo de volta, ${existingProfile.nome}!`, {
+          duration: 3000,
+        });
+        
+        // Aguardar um pouco antes de redirecionar para garantir que o toast seja exibido
+        setTimeout(() => {
+          navigate(redirectPath, { replace: true });
+        }, 500);
       } else {
         // Novo cliente - solicitar informações adicionais
+        toast.info("Vamos criar seu cadastro!", { duration: 2000 });
         setStep("profile");
       }
     } catch (error: unknown) {
+      console.error("Erro ao processar telefone:", error);
       toast.error("Erro ao processar telefone");
-      console.error(error);
     } finally {
       setLoading(false);
     }
@@ -118,7 +123,6 @@ const ClientAuth = () => {
 
       if (!validation.success) {
         toast.error(validation.error.errors[0].message);
-        setLoading(false);
         return;
       }
 
@@ -130,6 +134,7 @@ const ClientAuth = () => {
         email: emailFromPhone,
         password: passwordFromPhone,
         options: {
+          emailRedirectTo: `${window.location.origin}/`,
           data: {
             nome: clientData.nome,
             tipo: "cliente",
@@ -139,24 +144,28 @@ const ClientAuth = () => {
       });
 
       if (signUpError) {
-        // Se o usuário já existe mas não conseguiu logar antes, tentar login
-        if (signUpError.message.includes("already registered")) {
+        // Se o usuário já existe, tentar fazer login
+        if (signUpError.message.includes("already") || signUpError.message.includes("registered")) {
           const { error: signInError } = await supabase.auth.signInWithPassword({
             email: emailFromPhone,
             password: passwordFromPhone,
           });
 
           if (signInError) {
-            toast.error("Erro ao fazer login");
-            setLoading(false);
+            console.error("Erro ao fazer login:", signInError);
+            toast.error("Erro ao fazer login. Tente novamente.");
             return;
           }
+          
+          toast.success("Login realizado com sucesso!");
         } else {
-          throw signUpError;
+          console.error("Erro ao criar conta:", signUpError);
+          toast.error("Erro ao criar conta. Tente novamente.");
+          return;
         }
       }
 
-      // Atualizar perfil com telefone e foto
+      // Atualizar perfil com telefone e foto se usuário foi criado
       if (authData?.user) {
         const { error: updateError } = await supabase
           .from("profiles")
@@ -169,17 +178,17 @@ const ClientAuth = () => {
         if (updateError) {
           console.error("Erro ao atualizar perfil:", updateError);
         }
-      }
 
-      toast.success("Conta criada com sucesso!");
+        toast.success(`Bem-vindo, ${clientData.nome}!`, { duration: 3000 });
+      }
       
-      // Esperar um pouco para garantir que a sessão seja estabelecida
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      navigate(redirectPath, { replace: true });
+      // Aguardar para garantir que a sessão seja estabelecida
+      setTimeout(() => {
+        navigate(redirectPath, { replace: true });
+      }, 500);
     } catch (error: unknown) {
+      console.error("Erro ao criar conta:", error);
       toast.error(error instanceof Error ? error.message : "Erro ao criar conta");
-      console.error(error);
     } finally {
       setLoading(false);
     }
