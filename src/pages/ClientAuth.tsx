@@ -31,6 +31,7 @@ const ClientAuth = () => {
     nome: "",
     foto_url: "",
   });
+  const [welcomeName, setWelcomeName] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -51,12 +52,14 @@ const ClientAuth = () => {
   const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setWelcomeName(null);
 
     try {
-      // Validar telefone
-      const validation = z.string().trim().min(14).safeParse(telefone);
+      // Validar telefone usando o schema
+      const validation = phoneAuthSchema.pick({ telefone: true }).safeParse({ telefone });
+
       if (!validation.success) {
-        toast.error("Por favor, insira um telefone válido");
+        toast.error(validation.error.errors[0]?.message ?? "Por favor, insira um telefone válido");
         return;
       }
 
@@ -77,10 +80,11 @@ const ClientAuth = () => {
       if (existingProfile) {
         // Cliente já existe - fazer login automático
         const emailFromPhone = `${telefone.replace(/\D/g, "")}@cliente.app`;
-        
+        const passwordFromPhone = telefone.replace(/\D/g, "");
+
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email: emailFromPhone,
-          password: telefone.replace(/\D/g, ""),
+          password: passwordFromPhone,
         });
 
         if (signInError) {
@@ -89,17 +93,21 @@ const ClientAuth = () => {
           return;
         }
 
+        setWelcomeName(existingProfile.nome);
+
         toast.success(`Bem-vindo de volta, ${existingProfile.nome}!`, {
           duration: 3000,
         });
-        
+
         // Aguardar um pouco antes de redirecionar para garantir que o toast seja exibido
         setTimeout(() => {
           navigate(redirectPath, { replace: true });
-        }, 500);
+        }, 700);
       } else {
         // Novo cliente - solicitar informações adicionais
-        toast.info("Vamos criar seu cadastro!", { duration: 2000 });
+        toast.info("Não encontramos cadastro para este telefone. Vamos criar um cadastro rápido.", {
+          duration: 2500,
+        });
         setStep("profile");
       }
     } catch (error: unknown) {
@@ -275,6 +283,12 @@ const ClientAuth = () => {
                     )}
                   </Button>
                 </form>
+
+                {welcomeName && (
+                  <p className="mt-4 text-sm font-medium text-foreground text-center">
+                    Bem-vindo de volta, {welcomeName}!
+                  </p>
+                )}
               </CardContent>
             </>
           ) : (
