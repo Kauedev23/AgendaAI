@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getBusinessTerminology } from "@/utils/businessTerminology";
 
@@ -6,11 +6,7 @@ export const usePublicBusinessTerminology = (slug: string) => {
   const [terminology, setTerminology] = useState(getBusinessTerminology());
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadTerminology();
-  }, [slug]);
-
-  const loadTerminology = async () => {
+  const loadTerminology = useCallback(async () => {
     try {
       const { data: barbearia } = await supabase
         .from("barbearias")
@@ -26,7 +22,11 @@ export const usePublicBusinessTerminology = (slug: string) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [slug]);
+
+  useEffect(() => {
+    loadTerminology();
+  }, [loadTerminology]);
 
   return { terminology, loading };
 };

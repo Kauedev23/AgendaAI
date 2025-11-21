@@ -55,14 +55,29 @@ serve(async (req) => {
     // Verificar se é admin da barbearia
     const { data: barbearia, error: barbeariaError } = await supabaseClient
       .from('barbearias')
-      .select('admin_id')
+      .select('admin_id, tipo_comercio')
       .eq('id', barbearia_id)
       .single();
+
+    const termsMap: Record<string, { business: string; professional: string; professionals: string }> = {
+      barbearia: { business: 'Barbearia', professional: 'Barbeiro', professionals: 'Barbeiros' },
+      salao: { business: 'Salão', professional: 'Profissional', professionals: 'Profissionais' },
+      tatuagem: { business: 'Estúdio', professional: 'Tatuador', professionals: 'Tatuadores' },
+      spa: { business: 'Spa', professional: 'Terapeuta', professionals: 'Terapeutas' },
+      estetica: { business: 'Clínica', professional: 'Esteticista', professionals: 'Esteticistas' },
+      consultorio: { business: 'Consultório', professional: 'Profissional', professionals: 'Profissionais' },
+      personal: { business: 'Academia', professional: 'Personal', professionals: 'Personals' },
+      oficina: { business: 'Oficina', professional: 'Especialista', professionals: 'Especialistas' },
+      outro: { business: 'Negócio', professional: 'Profissional', professionals: 'Profissionais' }
+    };
+
+    const businessType = barbearia?.tipo_comercio || 'barbearia';
+    const terms = termsMap[businessType] || termsMap.barbearia;
 
     if (barbeariaError || !barbearia) {
       console.error('Erro ao buscar barbearia:', barbeariaError);
       return new Response(
-        JSON.stringify({ error: 'Barbearia não encontrada' }),
+        JSON.stringify({ error: `${terms.business} não encontrada` }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -70,7 +85,7 @@ serve(async (req) => {
     if (barbearia.admin_id !== user.id) {
       console.error('Usuário não é admin da barbearia');
       return new Response(
-        JSON.stringify({ error: 'Apenas o administrador da barbearia pode adicionar barbeiros' }),
+        JSON.stringify({ error: `Apenas o administrador da ${terms.business.toLowerCase()} pode adicionar ${terms.professionals.toLowerCase()}` }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -140,14 +155,14 @@ serve(async (req) => {
       );
     }
 
-    console.log('Barbeiro criado com sucesso');
+    console.log(`${terms.professional} criado com sucesso`);
 
     return new Response(
       JSON.stringify({ 
         user_id: newUser.user.id,
         email,
         temp_password: tempPassword,
-        message: 'Barbeiro criado com sucesso'
+        message: `${terms.professional} criado com sucesso`
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

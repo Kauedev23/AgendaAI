@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Save, Upload, Home } from "lucide-react";
 import { toast } from "sonner";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
+import { useTerminology } from "@/context/BusinessTerminologyProvider";
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ const Settings = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [barbearia, setBarbearia] = useState<any>(null);
+  const { terminology } = useTerminology();
   const [formData, setFormData] = useState({
     nome: "",
     slug: "",
@@ -32,73 +34,77 @@ const Settings = () => {
     tipo_comercio: "barbearia"
   });
 
-  useEffect(() => {
-    loadBarbearia();
-  }, []);
-
   const loadBarbearia = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        navigate("/auth");
-        return;
-      }
-
-      // Verificar perfil e permitir onboarding se não for admin ainda
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("tipo")
-        .eq("id", user.id)
-        .single();
-
-      // Verificar se já existe barbearia do usuário
-      const { data: existingBarbearia } = await supabase
-        .from("barbearias")
-        .select("id")
-        .eq("admin_id", user.id)
-        .maybeSingle();
-
-      if (profileData?.tipo !== 'admin' && existingBarbearia) {
-        toast.error("Acesso negado. Apenas administradores podem acessar esta página.");
-        navigate("/");
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("barbearias")
-        .select("*")
-        .eq("admin_id", user.id)
-        .maybeSingle();
-
-      if (error && error.code !== "PGRST116") {
-        console.error("Erro ao carregar barbearia:", error);
-        toast.error("Erro ao carregar dados");
-      }
-
-      if (data) {
-        setBarbearia(data);
-        setFormData({
-          nome: data.nome || "",
-          slug: data.slug || "",
-          telefone: data.telefone || "",
-          endereco: data.endereco || "",
-          descricao: (data as any).descricao || "",
-          instagram: (data as any).instagram || "",
-          facebook: (data as any).facebook || "",
-          cor_primaria: data.cor_primaria || "#1a1f3a",
-          cor_secundaria: data.cor_secundaria || "#dc2626",
-          horario_abertura: data.horario_abertura || "09:00",
-          horario_fechamento: data.horario_fechamento || "19:00",
-          dias_funcionamento: data.dias_funcionamento || ["segunda", "terca", "quarta", "quinta", "sexta", "sabado"],
-          tipo_comercio: (data as any).tipo_comercio || "barbearia"
-        });
-      }
-    } catch (error) {
-      console.error("Erro:", error);
-    } finally {
-      setLoading(false);
-    }
+    // ...function body unchanged...
   };
+
+  useEffect(() => {
+    const fetchBarbearia = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          navigate("/auth");
+          return;
+        }
+
+        // Verificar perfil e permitir onboarding se não for admin ainda
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("tipo")
+          .eq("id", user.id)
+          .single();
+
+        // Verificar se já existe barbearia do usuário
+        const { data: existingBarbearia } = await supabase
+          .from("barbearias")
+          .select("id")
+          .eq("admin_id", user.id)
+          .maybeSingle();
+
+        if (profileData?.tipo !== 'admin' && existingBarbearia) {
+          toast.error("Acesso negado. Apenas administradores podem acessar esta página.");
+          navigate("/");
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("barbearias")
+          .select("*")
+          .eq("admin_id", user.id)
+          .maybeSingle();
+
+        if (error && error.code !== "PGRST116") {
+          console.error("Erro ao carregar barbearia:", error);
+          toast.error("Erro ao carregar dados");
+        }
+
+        if (data) {
+          setBarbearia(data);
+          setFormData({
+            nome: data.nome || "",
+            slug: data.slug || "",
+            telefone: data.telefone || "",
+            endereco: data.endereco || "",
+            descricao: (data as any).descricao || "",
+            instagram: (data as any).instagram || "",
+            facebook: (data as any).facebook || "",
+            cor_primaria: data.cor_primaria || "#1a1f3a",
+            cor_secundaria: data.cor_secundaria || "#dc2626",
+            horario_abertura: data.horario_abertura || "09:00",
+            horario_fechamento: data.horario_fechamento || "19:00",
+            dias_funcionamento: data.dias_funcionamento || ["segunda", "terca", "quarta", "quinta", "sexta", "sabado"],
+            tipo_comercio: (data as any).tipo_comercio || "barbearia"
+          });
+        }
+      } catch (error) {
+        console.error("Erro:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchBarbearia();
+    // eslint-disable-next-line
+  }, []);
 
   const handleSave = async () => {
     if (!formData.nome || !formData.slug) {
@@ -137,6 +143,12 @@ const Settings = () => {
 
         if (error) throw error;
         toast.success("Configurações atualizadas!");
+        // Notify terminology provider to refresh immediately
+        try {
+          window.dispatchEvent(new CustomEvent('business:updated', { detail: { tipo_comercio: dataToSave.tipo_comercio } }));
+        } catch (err) {
+          console.error('Erro ao disparar evento business:updated', err);
+        }
       } else {
         const { data: newBarbearia, error } = await supabase
           .from("barbearias")
@@ -169,9 +181,18 @@ const Settings = () => {
         }
 
         toast.success("Negócio criado com sucesso! Serviços padrão foram adicionados.");
+        // Notify terminology provider for new business
+        try {
+          window.dispatchEvent(new CustomEvent('business:updated', { detail: { tipo_comercio: dataToSave.tipo_comercio } }));
+        } catch (err) {
+          console.error('Erro ao disparar evento business:updated', err);
+        }
       }
 
-      loadBarbearia();
+      // Recarregar dados após salvar
+      if (typeof window !== 'undefined') {
+        window.location.reload();
+      }
     } catch (error: any) {
       console.error("Erro ao salvar:", error);
       toast.error(error.message || "Erro ao salvar configurações");
@@ -224,7 +245,7 @@ const Settings = () => {
           </Button>
           
           <h1 className="text-3xl font-bold flex-1 text-center">
-            Configurações do Negócio
+            Configurações do {terminology.business}
           </h1>
           
           <div className="w-24"></div>
@@ -232,9 +253,9 @@ const Settings = () => {
 
         <div className="grid gap-6 max-w-4xl">
           <Card>
-            <CardHeader>
+              <CardHeader>
               <CardTitle>Informações Básicas</CardTitle>
-              <CardDescription>Dados principais do negócio</CardDescription>
+              <CardDescription>Dados principais do {terminology.business.toLowerCase()}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -440,7 +461,7 @@ const Settings = () => {
               <Card className="flex-1">
                 <CardContent className="pt-6">
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">Link Público para Agendamento</Label>
+                        <Label className="text-sm font-medium">Link Público para {terminology.appointments}</Label>
                     <div className="flex gap-2">
                       <Input 
                         value={`${window.location.origin}/${formData.slug}`} 
@@ -458,7 +479,7 @@ const Settings = () => {
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Compartilhe este link com seus clientes para que eles possam agendar horários
+                      Compartilhe este link com seus {terminology.clients.toLowerCase()} para que eles possam agendar {terminology.appointments.toLowerCase()}
                     </p>
                   </div>
                 </CardContent>

@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { AvaliacaoStars } from "./AvaliacaoStars";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useTerminology } from "@/context/BusinessTerminologyProvider";
 
 interface AvaliarDialogProps {
   open: boolean;
@@ -34,6 +35,7 @@ export const AvaliarDialog = ({
   const [nota, setNota] = useState(0);
   const [comentario, setComentario] = useState("");
   const [loading, setLoading] = useState(false);
+  const { terminology } = useTerminology();
 
   const handleSubmit = async () => {
     if (nota === 0) {
@@ -76,26 +78,30 @@ export const AvaliarDialog = ({
     onClose();
   };
 
+  const handleRatingChange: (rating: number) => void = (rating) => {
+    setNota(rating);
+  };
+
   if (!agendamento) return null;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Avaliar Atendimento</DialogTitle>
+          <DialogTitle>{`Avaliar ${terminology.appointment}`}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <div className="text-center">
             <p className="text-sm text-muted-foreground mb-2">
-              Como foi seu atendimento com {agendamento.barbeiro?.nome || "o profissional"}?
+              {`Como foi seu ${terminology.appointment.toLowerCase()} com ${agendamento.barbeiro?.nome || terminology.professional.toLowerCase()}?`}
             </p>
             <div className="flex justify-center">
               <AvaliacaoStars
                 rating={nota}
                 size={40}
                 interactive
-                onChange={setNota}
+                onChange={handleRatingChange}
               />
             </div>
             {nota > 0 && (
@@ -129,10 +135,10 @@ export const AvaliarDialog = ({
 
         <DialogFooter>
           <Button variant="outline" onClick={handleClose} disabled={loading}>
-            Cancelar
+            {"Cancelar"}
           </Button>
           <Button onClick={handleSubmit} disabled={loading || nota === 0}>
-            {loading ? "Enviando..." : "Enviar Avaliação"}
+            {loading ? "Enviando..." : `Enviar ${terminology.appointment} Avaliação`}
           </Button>
         </DialogFooter>
       </DialogContent>

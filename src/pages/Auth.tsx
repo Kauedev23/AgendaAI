@@ -2,7 +2,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Scissors } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -38,8 +44,8 @@ const Auth = () => {
       if (error) throw error;
 
       toast.success("Conta criada! Verifique seu email para confirmar.");
-    } catch (error: any) {
-      toast.error(error.message || "Erro ao criar conta");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Erro ao criar conta");
     } finally {
       setLoading(false);
     }
@@ -71,7 +77,9 @@ const Auth = () => {
         data: { user },
       } = await supabase.auth.getUser();
       if (user) {
-        const tipoFromUser = (user.user_metadata as any)?.tipo as ("admin" | "barbeiro" | "cliente") | undefined;
+        type UserMetadata = { tipo?: "admin" | "barbeiro" | "cliente"; nome?: string };
+        const userMetadata = user.user_metadata as UserMetadata | undefined;
+        const tipoFromUser = userMetadata?.tipo;
 
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
@@ -79,7 +87,12 @@ const Auth = () => {
           .eq("id", user.id)
           .maybeSingle();
 
-        console.log("Profile data:", profileData, "user_metadata.tipo:", tipoFromUser);
+        console.log(
+          "Profile data:",
+          profileData,
+          "user_metadata.tipo:",
+          tipoFromUser
+        );
 
         if (profileError) {
           console.error("Erro ao buscar perfil:", profileError);
@@ -88,7 +101,11 @@ const Auth = () => {
         const effectiveTipo = profileData?.tipo ?? tipoFromUser;
 
         // Se houver divergência, sincroniza o perfil com o metadata do usuário
-        if (tipoFromUser && profileData && profileData.tipo !== tipoFromUser) {
+        if (
+          tipoFromUser &&
+          profileData &&
+          profileData.tipo !== tipoFromUser
+        ) {
           const { error: updateError } = await supabase
             .from("profiles")
             .update({ tipo: tipoFromUser })
@@ -102,7 +119,12 @@ const Auth = () => {
           // Caso não exista perfil, cria um registro mínimo
           const { error: insertError } = await supabase
             .from("profiles")
-            .upsert({ id: user.id, email: user.email, nome: (user.user_metadata as any)?.nome, tipo: tipoFromUser });
+            .upsert({
+              id: user.id,
+              email: user.email,
+              nome: userMetadata?.nome,
+              tipo: tipoFromUser,
+            });
           if (insertError) console.error("Erro ao criar perfil:", insertError);
         }
 
@@ -115,8 +137,8 @@ const Auth = () => {
       } else {
         navigate("/dashboard", { replace: true });
       }
-    } catch (error: any) {
-      toast.error(error.message || "Erro ao fazer login");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Erro ao fazer login");
     } finally {
       setLoading(false);
     }
@@ -130,13 +152,17 @@ const Auth = () => {
             <Scissors className="h-10 w-10 text-secondary" />
             <span className="text-3xl font-bold text-white">AgendaAI</span>
           </div>
-          <p className="text-white/80">Sistema de Agendamento para pequenas e grandes empresas</p>
+          <p className="text-white/80">
+            Sistema de Agendamento para pequenas e grandes empresas
+          </p>
         </div>
 
         <Card className="shadow-2xl">
           <CardHeader>
             <CardTitle className="text-2xl text-center">Bem-vindo</CardTitle>
-            <CardDescription className="text-center">Entre ou crie sua conta para começar</CardDescription>
+            <CardDescription className="text-center">
+              Entre ou crie sua conta para começar
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="signin" className="w-full">
@@ -149,13 +175,29 @@ const Auth = () => {
                 <form onSubmit={handleSignIn} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="signin-email">E-mail</Label>
-                    <Input id="signin-email" name="email" type="email" placeholder="seu@email.com" required />
+                    <Input
+                      id="signin-email"
+                      name="email"
+                      type="email"
+                      placeholder="seu@email.com"
+                      required
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signin-password">Senha</Label>
-                    <Input id="signin-password" name="password" type="password" placeholder="••••••••" required />
+                    <Input
+                      id="signin-password"
+                      name="password"
+                      type="password"
+                      placeholder="••••••••"
+                      required
+                    />
                   </div>
-                  <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90" disabled={loading}>
+                  <Button
+                    type="submit"
+                    className="w-full bg-secondary hover:bg-secondary/90"
+                    disabled={loading}
+                  >
                     {loading ? "Entrando..." : "Entrar"}
                   </Button>
                 </form>
@@ -165,11 +207,23 @@ const Auth = () => {
                 <form onSubmit={handleSignUp} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="signup-nome">Nome Completo</Label>
-                    <Input id="signup-nome" name="nome" type="text" placeholder="Seu nome" required />
+                    <Input
+                      id="signup-nome"
+                      name="nome"
+                      type="text"
+                      placeholder="Seu nome"
+                      required
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-email">E-mail</Label>
-                    <Input id="signup-email" name="email" type="email" placeholder="seu@email.com" required />
+                    <Input
+                      id="signup-email"
+                      name="email"
+                      type="email"
+                      placeholder="seu@email.com"
+                      required
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-password">Senha</Label>
@@ -182,7 +236,11 @@ const Auth = () => {
                       minLength={6}
                     />
                   </div>
-                  <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90" disabled={loading}>
+                  <Button
+                    type="submit"
+                    className="w-full bg-secondary hover:bg-secondary/90"
+                    disabled={loading}
+                  >
                     {loading ? "Criando conta..." : "Criar Conta"}
                   </Button>
                 </form>

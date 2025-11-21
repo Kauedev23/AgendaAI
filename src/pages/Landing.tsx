@@ -2,86 +2,103 @@ import { Button } from "@/components/ui/button";
 import { Calendar, Scissors, Users, Clock, TrendingUp, Shield } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
+import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { usePublicBusinessTerminology } from "@/hooks/usePublicBusinessTerminology";
 
 const Landing = () => {
   const navigate = useNavigate();
   const [checking, setChecking] = useState(true);
+  const { terminology } = usePublicBusinessTerminology("");
+
+  type UserMetadata = { tipo?: "admin" | "barbeiro" | "cliente"; nome?: string };
 
   useEffect(() => {
+    let mounted = true;
+
+    const handleRedirect = async (user: User) => {
+      try {
+        const userMetadata = user.user_metadata as UserMetadata | undefined;
+        const tipoFromUser = userMetadata?.tipo;
+
+        const { data: profileData } = await supabase.from("profiles").select("tipo").eq("id", user.id).maybeSingle();
+
+        const effectiveTipo = profileData?.tipo ?? tipoFromUser;
+
+        // Sincroniza divergências entre metadata e perfil
+        if (tipoFromUser && profileData && profileData.tipo !== tipoFromUser) {
+          await supabase.from("profiles").update({ tipo: tipoFromUser }).eq("id", user.id);
+        } else if (tipoFromUser && !profileData) {
+          await supabase.from("profiles").insert({
+            id: user.id,
+            email: user.email || "",
+            nome: userMetadata?.nome || "Usuário",
+            tipo: tipoFromUser,
+          });
+        }
+
+        if (!mounted) return;
+
+        if (effectiveTipo === "barbeiro") {
+          navigate("/barber-dashboard", { replace: true });
+          return;
+        }
+
+        if (effectiveTipo === "admin") {
+          navigate("/dashboard", { replace: true });
+          return;
+        }
+
+        // Se for cliente, verificar se já possui uma barbearia associada como admin
+        const { data: barbeariaData } = await supabase
+          .from("barbearias")
+          .select("id")
+          .eq("admin_id", user.id)
+          .maybeSingle();
+
+        if (!mounted) return;
+
+        if (barbeariaData) {
+          // Se já tem barbearia, direcionar ao dashboard (e sincronizar tipo se necessário)
+          if (profileData && profileData.tipo !== "admin") {
+            await supabase.from("profiles").update({ tipo: "admin" }).eq("id", user.id);
+          }
+          navigate("/dashboard", { replace: true });
+        } else {
+          // Onboarding: levar para configurar a barbearia
+          navigate("/settings", { replace: true });
+        }
+      } catch (error) {
+        console.error("Erro ao redirecionar usuário:", error);
+      } finally {
+        if (mounted) setChecking(false);
+      }
+    };
+
     // Listener para mudanças de autenticação e checagem inicial
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
-        handleRedirect(session.user);
+        void handleRedirect(session.user);
       }
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
-        handleRedirect(session.user);
+        void handleRedirect(session.user);
       } else {
-        setChecking(false);
+        if (mounted) setChecking(false);
       }
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const handleRedirect = async (user: any) => {
-    try {
-      const tipoFromUser = (user.user_metadata as any)?.tipo as ("admin" | "barbeiro" | "cliente") | undefined;
-
-      const { data: profileData } = await supabase.from("profiles").select("tipo").eq("id", user.id).maybeSingle();
-
-      const effectiveTipo = profileData?.tipo ?? tipoFromUser;
-
-      // Sincroniza divergências entre metadata e perfil
-      if (tipoFromUser && profileData && profileData.tipo !== tipoFromUser) {
-        await supabase.from("profiles").update({ tipo: tipoFromUser }).eq("id", user.id);
-      } else if (tipoFromUser && !profileData) {
-        await supabase.from("profiles").insert({
-          id: user.id,
-          email: user.email || "",
-          nome: (user.user_metadata as any)?.nome || "Usuário",
-          tipo: tipoFromUser,
-        });
-      }
-
-      if (effectiveTipo === "barbeiro") {
-        navigate("/barber-dashboard", { replace: true });
-        return;
-      }
-
-      if (effectiveTipo === "admin") {
-        navigate("/dashboard", { replace: true });
-        return;
-      }
-
-      // Se for cliente, verificar se já possui uma barbearia associada como admin
-      const { data: barbeariaData } = await supabase
-        .from("barbearias")
-        .select("id")
-        .eq("admin_id", user.id)
-        .maybeSingle();
-
-      if (barbeariaData) {
-        // Se já tem barbearia, direcionar ao dashboard (e sincronizar tipo se necessário)
-        if (profileData && profileData.tipo !== "admin") {
-          await supabase.from("profiles").update({ tipo: "admin" }).eq("id", user.id);
-        }
-        navigate("/dashboard", { replace: true });
-      } else {
-        // Onboarding: levar para configurar a barbearia
-        navigate("/settings", { replace: true });
-      }
-    } catch (error) {
-      console.error("Erro ao redirecionar usuário:", error);
-    } finally {
-      setChecking(false);
-    }
-  };
+    return () => {
+      mounted = false;
+      try {
+        subscription.unsubscribe();
+      } catch {}
+    };
+  }, [navigate]);
 
   if (checking) {
     return (
@@ -103,7 +120,7 @@ const Landing = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Scissors className="h-8 w-8 text-secondary" />
-              <span className="text-2xl font-bold">Agenda AI</span>
+              <span className="text-2xl font-bold">AgendaAI</span>
             </div>
             <div className="flex gap-4">
               <Link to="/auth">
@@ -121,7 +138,7 @@ const Landing = () => {
         <div className="container mx-auto px-6 py-24 relative z-10">
           <div className="max-w-4xl mx-auto text-center">
             <h1 className="text-5xl md:text-7xl font-bold mb-6 animate-in fade-in slide-in-from-bottom-4 duration-1000">
-              O Sistema de Agendamento que o seu Negócio Merece!
+              O sistema de agendamento que o seu negócio merece!
             </h1>
             <p className="text-xl md:text-2xl mb-8 text-white/90 animate-in fade-in slide-in-from-bottom-5 duration-1000 delay-200">
               Modernize seu negócio com agendamento online, gestão completa e experiência premium para seus clientes
@@ -196,8 +213,8 @@ const Landing = () => {
               },
               {
                 icon: Scissors,
-                title: "Multi-tenant",
-                description: "Cada Empresa com seu próprio espaço e identidade",
+                title: "Multi-negócio",
+                description: "Cada negócio com seu próprio espaço e identidade",
               },
             ].map((feature, index) => (
               <div key={index} className="p-8 rounded-2xl border border-border bg-card card-hover">
@@ -214,10 +231,10 @@ const Landing = () => {
 
       {/* CTA Section */}
       <section className="py-24 gradient-primary text-white relative overflow-hidden">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDE4YzMuMzEzIDAgNiAyLjY4NiA2IDZzLTIuNjg3IDYtNiA2LTYtMi42ODYtNi02IDIuNjg3LTYgNi02ek0yNCA2YzMuMzEzIDAgNiAyLjY4NiA2IDZzLTIuNjg3IDYtNiA2LTYtMi42ODYtNi02IDIuNjg3LTYgNi02eiIvPjwvZz48L2c+PC9zdmc+')] opacity-10"></div>
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1zbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDE4YzMuMzEzIDAgNiAyLjY4NiA2IDZzLTIuNjg3IDYtNiA2LTYtMi42ODYtNi02IDIuNjg3LTYgNi02ek0yNCA2YzMuMzEzIDAgNiAyLjY4NiA2IDZzLTIuNjg3IDYtNiA2LTYtMi42ODYtNi02IDIuNjg3LTYgNi02eiIvPjwvZz48L2c+PC9zdmc+')] opacity-10"></div>
 
         <div className="container mx-auto px-6 text-center relative z-10">
-          <h2 className="text-4xl md:text-5xl font-bold mb-6">Pronto para Modernizar sua Empresa?</h2>
+          <h2 className="text-4xl md:text-5xl font-bold mb-6">Pronto para modernizar seu negócio?</h2>
           <p className="text-xl mb-8 text-white/90 max-w-2xl mx-auto">
             Comece gratuitamente hoje e veja como o AgendaAI pode transformar seu negócio
           </p>
@@ -237,7 +254,7 @@ const Landing = () => {
             <span className="text-xl font-bold">AgendaAI</span>
           </div>
           <p className="text-white/70">
-            © 2024 AgendaAI. Sistema profissional de agendamento para pequenos e grandes negócios.
+            © 2025 AgendaAI. Sistema profissional de agendamento para seu negócio.
           </p>
         </div>
       </footer>

@@ -1,6 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Star, Edit } from "lucide-react";
+import { useTerminology } from "@/context/BusinessTerminologyProvider";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 
@@ -26,6 +27,7 @@ interface BarbeiroCardProps {
 }
 
 export const BarbeiroCard = ({ barbeiro, stats, onEditHorario, onEdit }: BarbeiroCardProps) => {
+  const { terminology } = useTerminology();
   const diasMap: Record<string, string> = {
     segunda: "Segunda",
     terca: "Terça",
@@ -70,7 +72,7 @@ export const BarbeiroCard = ({ barbeiro, stats, onEditHorario, onEdit }: Barbeir
       <div className="bg-gradient-to-br from-cyan-500 to-cyan-600 p-6 text-white relative">
         {barbeiro.ativo && (
           <Badge className="absolute top-4 right-4 bg-green-500 hover:bg-green-500 border-0 text-white font-bold text-sm px-3 py-1">
-            Ativo
+            {"Ativo"}
           </Badge>
         )}
         
@@ -87,7 +89,7 @@ export const BarbeiroCard = ({ barbeiro, stats, onEditHorario, onEdit }: Barbeir
             
             <div className="space-y-1">
               <h4 className="text-blue-900 font-bold text-base">
-                Horário de atendimento
+                {terminology.schedule}
               </h4>
               <p className="text-white text-base font-medium">
                 {getDiasTexto()}
@@ -108,14 +110,14 @@ export const BarbeiroCard = ({ barbeiro, stats, onEditHorario, onEdit }: Barbeir
           </div>
 
           <div className="text-center border-l border-r border-white/20">
-            <p className="text-white/90 text-xs font-semibold mb-1">Serviços Realizados</p>
+            <p className="text-white/90 text-xs font-semibold mb-1">{`${terminology.services} Realizados`}</p>
             <p className="text-white text-xl font-bold">
               {stats.servicos_realizados}
             </p>
           </div>
 
           <div className="text-center">
-            <p className="text-white/90 text-xs font-semibold mb-1">Avaliação clientes</p>
+            <p className="text-white/90 text-xs font-semibold mb-1">{`${terminology.clients} (${terminology.professional.toLowerCase()} Avaliações)`}</p>
             <div className="flex justify-center gap-1 mt-1">
               {[1, 2, 3, 4, 5].map((star) => (
                 <Star
@@ -142,7 +144,7 @@ export const BarbeiroCard = ({ barbeiro, stats, onEditHorario, onEdit }: Barbeir
           className="absolute top-4 left-4 text-white hover:bg-white/20 h-8 px-3 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
         >
           <Edit className="h-3 w-3 mr-1" />
-          Editar Horário
+          {`Editar ${terminology.schedule}`}
         </Button>
       </div>
     </Card>

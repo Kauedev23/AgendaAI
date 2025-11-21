@@ -14,12 +14,14 @@ import { format, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { z } from "zod";
 import { useNotifications } from "@/hooks/useNotifications";
+import { usePublicBusinessTerminology } from "@/hooks/usePublicBusinessTerminology";
 
 const bookingSchema = z.object({
   observacoes: z.string().max(500, "Observações muito longas").optional(),
 });
 
 const PublicBooking = () => {
+  // --- HOOKS DE ESTADO ---
   const { slug } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -38,14 +40,66 @@ const PublicBooking = () => {
   const [step, setStep] = useState(0);
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [telefone, setTelefone] = useState("");
+  const [rawTelefone, setRawTelefone] = useState("");
   const [phoneLoading, setPhoneLoading] = useState(false);
   const [showNameInput, setShowNameInput] = useState(false);
   const [clienteName, setClienteName] = useState("");
+  const [welcomeName, setWelcomeName] = useState<string | null>(null);
   const { scheduleAppointmentReminder, showNotification } = useNotifications();
+  const { terminology: publicTerminology } = usePublicBusinessTerminology(slug || "");
 
-  useEffect(() => { loadBarbearia(); }, [slug]);
-  useEffect(() => { if (selectedBarbeiro && selectedDate) loadAvailableTimes(); }, [selectedBarbeiro, selectedDate, selectedServico]);
+  // --- FUNÇÕES INTERNAS ---
 
+  // Carrega dados públicos da barbearia, barbeiros e serviços
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      if (!slug) {
+        toast.error("Barbearia não encontrada");
+        navigate("/");
+        return;
+      }
+      // Buscar barbearia pelo slug
+      const { data: barbeariaData, error: barbeariaError } = await supabase
+        .from("barbearias")
+        .select("*")
+        .eq("slug", slug)
+        .maybeSingle();
+      if (barbeariaError || !barbeariaData) {
+        toast.error("Barbearia não encontrada");
+        navigate("/");
+        return;
+      }
+      setBarbearia(barbeariaData);
+
+      // Buscar barbeiros ativos
+      const { data: barbeirosData } = await supabase
+        .from("barbeiros")
+        .select("*, profiles:user_id (nome, email, telefone)")
+        .eq("barbearia_id", barbeariaData.id)
+        .eq("ativo", true);
+      setBarbeiros(barbeirosData || []);
+
+      // Buscar serviços ativos
+      const { data: servicosData } = await supabase
+        .from("servicos")
+        .select("*")
+        .eq("barbearia_id", barbeariaData.id)
+        .eq("ativo", true)
+        .order("preco", { ascending: true });
+      setServicos(servicosData || []);
+    } catch (error) {
+      toast.error("Erro ao carregar dados públicos");
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
   const formatPhone = (value: string) => {
     const numbers = value.replace(/\D/g, "");
     if (numbers.length <= 2) return `(${numbers}`;
@@ -54,128 +108,112 @@ const PublicBooking = () => {
     return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
   };
 
+  // Tela inicial: login por telefone
   const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setPhoneLoading(true);
+    setWelcomeName(null);
     try {
-      if (telefone.replace(/\D/g, "").length < 10) { 
-        toast.error("Por favor, insira um telefone válido"); 
-        setPhoneLoading(false); 
-        return; 
+      const raw = telefone.replace(/\D/g, "");
+      if (raw.length < 10) {
+        toast.error("Por favor, insira um telefone válido");
+        setPhoneLoading(false);
+        return;
       }
-      
+      setRawTelefone(raw);
+      // Busca cliente pelo telefone
       const { data: existingProfile } = await supabase
         .from("profiles")
         .select("*")
         .eq("telefone", telefone)
         .eq("tipo", "cliente")
         .maybeSingle();
-      
       if (existingProfile) {
-        const emailFromPhone = `${telefone.replace(/\D/g, "")}@cliente.app`;
-        const { error: signInError, data: authData } = await supabase.auth.signInWithPassword({ 
-          email: emailFromPhone, 
-          password: telefone.replace(/\D/g, "") 
-        });
-        
-        if (signInError) { 
-          toast.error("Erro ao fazer login"); 
-          console.error(signInError);
-          setPhoneLoading(false); 
-          return; 
-        }
-        
-        setUser(authData.user); 
-        setProfile(existingProfile); 
+        setProfile(existingProfile);
         setClienteName(existingProfile.nome);
-        toast.success(`Bem-vindo de volta, ${existingProfile.nome}!`); 
-        setStep(1);
-      } else { 
-        setShowNameInput(true); 
+        setShowNameInput(false);
+        setWelcomeName(existingProfile.nome);
+        toast.success(`Bem-vindo de volta, ${existingProfile.nome}!`);
+        // Não avança de step automaticamente, só libera botão para avançar
+      } else {
+        setShowNameInput(true);
+        setWelcomeName(null);
       }
-    } catch (error) { 
-      toast.error("Erro ao processar telefone"); 
+    } catch (error) {
+      toast.error("Erro ao processar telefone");
       console.error(error);
-    } finally { 
-      setPhoneLoading(false); 
+    } finally {
+      setPhoneLoading(false);
     }
   };
 
+  // Cadastro rápido do cliente caso não exista
   const handleQuickRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setPhoneLoading(true);
     try {
-      if (!clienteName.trim() || clienteName.trim().length < 3) { 
-        toast.error("Por favor, insira seu nome completo"); 
-        setPhoneLoading(false); 
-        return; 
+      const nome = clienteName.trim();
+      if (nome.length < 3) {
+        toast.error("Nome muito curto");
+        setPhoneLoading(false);
+        return;
       }
-      
-      const emailFromPhone = `${telefone.replace(/\D/g, "")}@cliente.app`;
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({ 
-        email: emailFromPhone, 
-        password: telefone.replace(/\D/g, ""), 
-        options: { 
-          data: { nome: clienteName, telefone, tipo: "cliente" }, 
-          emailRedirectTo: `${window.location.origin}/` 
-        } 
-      });
-      
-      if (signUpError || !authData.user) { 
-        toast.error("Erro ao criar conta"); 
-        console.error(signUpError);
-        setPhoneLoading(false); 
-        return; 
-      }
-      
-      await supabase.from("profiles").update({ nome: clienteName, telefone }).eq("id", authData.user.id);
-      setUser(authData.user); 
-      setProfile({ id: authData.user.id, nome: clienteName, telefone, email: emailFromPhone });
-      toast.success("Conta criada com sucesso!"); 
-      setStep(1);
-    } catch (error) { 
-      toast.error("Erro ao criar conta"); 
-      console.error(error);
-    } finally { 
-      setPhoneLoading(false); 
-    }
-  };
-
-  const loadBarbearia = async () => {
-    try {
-      const { data: barbeariasData } = await supabase
-        .from("barbearias")
+      const raw = telefone.replace(/\D/g, "");
+      // Impede duplicidade de telefone
+      const { data: existingProfile } = await supabase
+        .from("profiles")
         .select("*")
-        .eq("slug", slug)
+        .eq("telefone", telefone)
+        .eq("tipo", "cliente")
         .maybeSingle();
-      
-      if (!barbeariasData) { 
-        toast.error("Negócio não encontrado"); 
-        setLoading(false); 
-        return; 
+      if (existingProfile) {
+        toast.error("Telefone já cadastrado. Faça login.");
+        setShowNameInput(false);
+        setWelcomeName(existingProfile.nome);
+        setClienteName(existingProfile.nome);
+        setProfile(existingProfile);
+        setPhoneLoading(false);
+        return;
       }
-      
-      setBarbearia(barbeariasData);
-      
-      const { data: publicBarbers } = await supabase.rpc("get_public_barbers", { _slug: String(slug) });
-      setBarbeiros(publicBarbers || []);
-      
-      const { data: servicosData } = await supabase
-        .from("servicos")
-        .select("*")
-        .eq("barbearia_id", barbeariasData.id)
-        .eq("ativo", true)
-        .order("preco", { ascending: true });
-      
-      setServicos(servicosData || []);
-      setLoading(false);
-    } catch (error) { 
-      toast.error("Erro ao carregar dados"); 
+      // Cadastro via Edge Function (public-booking)
+      const emailFromPhone = `${raw}@cliente.app`;
+      // Detecta ambiente local e ajusta a URL da função
+      const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.hostname.startsWith("192.168.");
+      const fnUrl = isLocal
+        ? "http://localhost:54321/functions/v1/public-booking"
+        : "/functions/v1/public-booking";
+      const response = await fetch(fnUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "register-client",
+          nome,
+          telefone,
+          email: emailFromPhone,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result || result.error) {
+        toast.error(result?.error || "Erro ao criar cadastro");
+        setPhoneLoading(false);
+        return;
+      }
+      setProfile(result.data);
+      setClienteName(result.data.nome);
+      setWelcomeName(result.data.nome);
+      toast.success("Cadastro criado com sucesso!");
+      setShowNameInput(false);
+      setStep(1);
+    } catch (error) {
+      toast.error("Erro ao criar cadastro");
       console.error(error);
-      setLoading(false); 
+    } finally {
+      setPhoneLoading(false);
     }
   };
 
+
+  // Carrega horários disponíveis para o barbeiro, data e serviço selecionados
   const loadAvailableTimes = async () => {
     if (!selectedBarbeiro || !selectedDate || !selectedServico) {
       setAvailableTimes([]);
@@ -238,6 +276,16 @@ const PublicBooking = () => {
     }
   };
 
+  // Atualiza horários disponíveis quando seleção muda
+  useEffect(() => {
+    if (selectedBarbeiro && selectedDate && selectedServico) {
+      loadAvailableTimes();
+    } else {
+      setAvailableTimes([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBarbeiro, selectedDate, selectedServico, servicos, barbearia]);
+
   const handleBooking = async () => {
     try {
       const validation = bookingSchema.safeParse({ observacoes });
@@ -275,17 +323,17 @@ const PublicBooking = () => {
           selectedDate,
           selectedTime,
           barbearia.nome,
-          barbeiroInfo?.nome || "Profissional"
+          barbeiroInfo?.nome || publicTerminology.professional
         );
         
         // Mostra notificação imediata de confirmação
-        showNotification("Agendamento Confirmado! 🎉", {
+        showNotification(`${publicTerminology.appointment} Confirmado! 🎉`, {
           body: `Seu horário está marcado para ${format(new Date(selectedDate), "dd/MM/yyyy")} às ${selectedTime}`,
           tag: `booking-confirmed-${data.agendamentoId}`,
         });
       }
       
-      toast.success("Agendamento realizado com sucesso!"); 
+      toast.success(`${publicTerminology.appointment} realizado com sucesso!`);
       setBookingSuccess(true);
     } catch (error) { 
       toast.error("Erro ao processar agendamento"); 
@@ -341,16 +389,17 @@ const PublicBooking = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4 p-4">
         <CheckCircle2 className="h-16 w-16 text-green-500" />
-        <h2 className="text-2xl font-bold">Agendamento Confirmado!</h2>
+        <h2 className="text-2xl font-bold">{`${publicTerminology.appointment} Confirmado!`}</h2>
         <p className="text-muted-foreground text-center max-w-md">
-          Seu agendamento foi realizado com sucesso. Em breve você receberá a confirmação.
+          Seu {publicTerminology.appointment.toLowerCase()} foi realizado com sucesso. Em breve você receberá a confirmação.
         </p>
         <Button onClick={() => window.location.href = `/booking/${slug}`}>
-          Fazer novo agendamento
+          {`Fazer novo ${publicTerminology.appointment.toLowerCase()}`}
         </Button>
       </div>
     );
   }
+
 
   return (
     <div className="min-h-screen bg-background p-4 pb-20">
@@ -359,7 +408,7 @@ const PublicBooking = () => {
           <Button 
             variant="ghost" 
             size="icon"
-            onClick={() => step === 0 ? navigate("/") : setStep(step - 1)}
+            onClick={() => step === 0 ? navigate("/?public=true") : setStep(step - 1)}
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -390,41 +439,21 @@ const PublicBooking = () => {
         )}
       </div>
 
-      {step > 0 && (
-        <div className="max-w-4xl mx-auto mb-6">
-          <div className="flex justify-between items-center gap-2">
-            {[1, 2, 3, 4].map((s) => (
-              <div key={s} className="flex-1">
-                <div className={`h-2 rounded-full transition-colors ${
-                  s <= step ? 'bg-primary' : 'bg-muted'
-                }`} />
-              </div>
-            ))}
-          </div>
-          <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-            <span>Serviço</span>
-            <span>Profissional</span>
-            <span>Data/Hora</span>
-            <span>Confirmar</span>
-          </div>
-        </div>
-      )}
-
+      {/* TELA INICIAL DE LOGIN/CADASTRO */}
       {step === 0 && (
         <Card className="max-w-md mx-auto">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Phone className="h-5 w-5" />
-              Identificação
+              Identificação do Cliente
             </CardTitle>
             <CardDescription>
-              {!showNameInput 
-                ? "Digite seu telefone para continuar" 
-                : "Complete seu cadastro"}
+              Digite seu telefone para continuar
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {!showNameInput ? (
+            {/* Se ainda não buscou ou não encontrou, mostra input de telefone */}
+            {!welcomeName && !showNameInput && (
               <form onSubmit={handlePhoneSubmit} className="space-y-4">
                 <div>
                   <Label htmlFor="telefone">Telefone</Label>
@@ -438,9 +467,9 @@ const PublicBooking = () => {
                     required
                   />
                 </div>
-                <Button 
-                  type="submit" 
-                  className="w-full" 
+                <Button
+                  type="submit"
+                  className="w-full"
                   disabled={phoneLoading || telefone.replace(/\D/g, "").length < 10}
                 >
                   {phoneLoading ? (
@@ -449,12 +478,25 @@ const PublicBooking = () => {
                       Verificando...
                     </>
                   ) : (
-                    "Continuar"
+                    "Entrar"
                   )}
                 </Button>
               </form>
-            ) : (
-              <form onSubmit={handleQuickRegister} className="space-y-4">
+            )}
+            {/* Se encontrou cliente, só mostra mensagem e botão continuar */}
+            {welcomeName && !showNameInput && (
+              <div className="mt-4 text-center">
+                <div className="text-green-600 font-semibold mb-2">
+                  Bem-vindo de volta, {welcomeName}!
+                </div>
+                <Button className="w-full" onClick={() => setStep(1)}>
+                  Continuar
+                </Button>
+              </div>
+            )}
+            {/* Se não encontrou, pede cadastro */}
+            {showNameInput && !welcomeName && (
+              <form onSubmit={handleQuickRegister} className="space-y-4 mt-4">
                 <div>
                   <Label htmlFor="telefone-readonly">Telefone</Label>
                   <Input
@@ -477,20 +519,21 @@ const PublicBooking = () => {
                   />
                 </div>
                 <div className="flex gap-2">
-                  <Button 
+                  <Button
                     type="button"
                     variant="outline"
                     onClick={() => {
                       setShowNameInput(false);
                       setClienteName("");
+                      setProfile(null);
                     }}
                     className="flex-1"
                   >
                     Voltar
                   </Button>
-                  <Button 
-                    type="submit" 
-                    className="flex-1" 
+                  <Button
+                    type="submit"
+                    className="flex-1"
                     disabled={phoneLoading || clienteName.trim().length < 3}
                   >
                     {phoneLoading ? (
@@ -509,11 +552,79 @@ const PublicBooking = () => {
         </Card>
       )}
 
+      {/* TELA DE CADASTRO SE NÃO EXISTE */}
+      {step === 0 && showNameInput && !profile && (
+        <Card className="max-w-md mx-auto">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Phone className="h-5 w-5" />
+              Cadastro do Cliente
+            </CardTitle>
+            <CardDescription>
+              Preencha seus dados para criar sua conta
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleQuickRegister} className="space-y-4">
+              <div>
+                <Label htmlFor="telefone-readonly">Telefone</Label>
+                <Input
+                  id="telefone-readonly"
+                  type="tel"
+                  value={telefone}
+                  disabled
+                />
+              </div>
+              <div>
+                <Label htmlFor="nome">Nome Completo</Label>
+                <Input
+                  id="nome"
+                  type="text"
+                  placeholder="Seu nome completo"
+                  value={clienteName}
+                  onChange={(e) => setClienteName(e.target.value)}
+                  required
+                  minLength={3}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowNameInput(false);
+                    setClienteName("");
+                    setProfile(null);
+                  }}
+                  className="flex-1"
+                >
+                  Voltar
+                </Button>
+                <Button
+                  type="submit"
+                  className="flex-1"
+                  disabled={phoneLoading || clienteName.trim().length < 3}
+                >
+                  {phoneLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Criando...
+                    </>
+                  ) : (
+                    "Criar Conta"
+                  )}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
       {step === 1 && (
         <Card className="max-w-4xl mx-auto">
           <CardHeader>
-            <CardTitle>Escolha o Serviço</CardTitle>
-            <CardDescription>Selecione o serviço desejado</CardDescription>
+            <CardTitle>{publicTerminology.selectService}</CardTitle>
+            <CardDescription>{publicTerminology.selectService}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
             {servicos.map((servico) => (
@@ -554,8 +665,8 @@ const PublicBooking = () => {
       {step === 2 && (
         <Card className="max-w-4xl mx-auto">
           <CardHeader>
-            <CardTitle>Escolha o Profissional</CardTitle>
-            <CardDescription>Selecione quem irá atendê-lo</CardDescription>
+            <CardTitle>{publicTerminology.selectProfessional}</CardTitle>
+            <CardDescription>{publicTerminology.selectProfessional}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
             {barbeiros.map((barbeiro) => (
@@ -670,7 +781,7 @@ const PublicBooking = () => {
       {step === 4 && (
         <Card className="max-w-2xl mx-auto">
           <CardHeader>
-            <CardTitle>Confirmar Agendamento</CardTitle>
+              <CardTitle>{`Confirmar ${publicTerminology.appointment}`}</CardTitle>
             <CardDescription>Revise os dados antes de confirmar</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -678,7 +789,7 @@ const PublicBooking = () => {
               <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
                 <User className="h-5 w-5 text-muted-foreground" />
                 <div>
-                  <p className="text-sm text-muted-foreground">Cliente</p>
+                  <p className="text-sm text-muted-foreground">{publicTerminology.client}</p>
                   <p className="font-medium">{clienteName}</p>
                   <p className="text-sm text-muted-foreground">{telefone}</p>
                 </div>
@@ -687,7 +798,7 @@ const PublicBooking = () => {
               <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
                 <Check className="h-5 w-5 text-muted-foreground" />
                 <div>
-                  <p className="text-sm text-muted-foreground">Serviço</p>
+                  <p className="text-sm text-muted-foreground">{publicTerminology.service}</p>
                   <p className="font-medium">
                     {servicos.find(s => s.id === selectedServico)?.nome}
                   </p>
@@ -697,7 +808,7 @@ const PublicBooking = () => {
               <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
                 <User className="h-5 w-5 text-muted-foreground" />
                 <div>
-                  <p className="text-sm text-muted-foreground">Profissional</p>
+                  <p className="text-sm text-muted-foreground">{publicTerminology.professional}</p>
                   <p className="font-medium">
                     {barbeiros.find(b => b.id === selectedBarbeiro)?.nome}
                   </p>
@@ -773,6 +884,6 @@ const PublicBooking = () => {
       )}
     </div>
   );
-};
+}
 
 export default PublicBooking;

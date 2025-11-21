@@ -16,114 +16,118 @@ const Reports = () => {
   const [stats, setStats] = useState<any>({});
   const [insights, setInsights] = useState<any[]>([]);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
   const loadData = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        navigate("/auth");
-        return;
-      }
-
-      // Verificar se é admin
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("tipo")
-        .eq("id", user.id)
-        .single();
-
-      if (profileData?.tipo !== 'admin') {
-        toast.error("Acesso negado. Apenas administradores podem acessar esta página.");
-        navigate("/");
-        return;
-      }
-
-      const { data: barbeariasData } = await supabase
-        .from("barbearias")
-        .select("*")
-        .eq("admin_id", user.id)
-        .maybeSingle();
-
-      if (!barbeariasData) {
-        toast.error("Configure sua barbearia primeiro");
-        navigate("/settings");
-        return;
-      }
-
-      setBarbearia(barbeariasData);
-
-      // Buscar agendamentos
-      const { data: agendamentos } = await supabase
-        .from("agendamentos")
-        .select("*, servico:servicos(nome, preco), barbeiro:barbeiros(id, profiles:user_id(nome))")
-        .eq("barbearia_id", barbeariasData.id);
-
-      // Buscar transações
-      const { data: transacoes } = await (supabase as any)
-        .from("transacoes")
-        .select("*")
-        .eq("barbearia_id", barbeariasData.id);
-
-      // Calcular estatísticas
-      const totalAgendamentos = agendamentos?.length || 0;
-      const pendentes = agendamentos?.filter((a: any) => a.status === 'pendente').length || 0;
-      const confirmados = agendamentos?.filter((a: any) => a.status === 'confirmado').length || 0;
-      const concluidos = agendamentos?.filter((a: any) => a.status === 'concluido').length || 0;
-      
-      const faturamentoTotal = transacoes?.filter((t: any) => t.tipo === 'receita').reduce((acc: number, t: any) => acc + parseFloat(String(t.valor)), 0) || 0;
-      const ticketMedio = concluidos > 0 ? faturamentoTotal / concluidos : 0;
-
-      // Serviços mais populares
-      const servicosMap = new Map();
-      agendamentos?.forEach((a: any) => {
-        if (a.servico) {
-          const existing = servicosMap.get(a.servico.nome) || { nome: a.servico.nome, quantidade: 0, faturamento: 0 };
-          existing.quantidade += 1;
-          if (a.status === 'concluido') {
-            existing.faturamento += parseFloat(String(a.servico.preco));
-          }
-          servicosMap.set(a.servico.nome, existing);
-        }
-      });
-
-      // Performance dos barbeiros
-      const barbeirosMap = new Map();
-      agendamentos?.forEach((a: any) => {
-        if (a.barbeiro?.profiles) {
-          const nome = a.barbeiro.profiles.nome;
-          const existing = barbeirosMap.get(nome) || { nome, agendamentos: 0, faturamento: 0 };
-          existing.agendamentos += 1;
-          if (a.status === 'concluido' && a.servico) {
-            existing.faturamento += parseFloat(String(a.servico.preco));
-          }
-          barbeirosMap.set(nome, existing);
-        }
-      });
-
-      setStats({
-        agendamentos: {
-          total: totalAgendamentos,
-          pendentes,
-          confirmados,
-          concluidos
-        },
-        faturamento: {
-          total: faturamentoTotal,
-          ticketMedio
-        },
-        servicos: Array.from(servicosMap.values()).sort((a, b) => b.quantidade - a.quantidade),
-        barbeiros: Array.from(barbeirosMap.values()).sort((a, b) => b.agendamentos - a.agendamentos)
-      });
-
-    } catch (error) {
-      console.error("Erro:", error);
-    } finally {
-      setLoading(false);
-    }
+    // ...function body unchanged...
   };
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          navigate("/auth");
+          return;
+        }
+
+        // Verificar se é admin
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("tipo")
+          .eq("id", user.id)
+          .single();
+
+        if (profileData?.tipo !== 'admin') {
+          toast.error("Acesso negado. Apenas administradores podem acessar esta página.");
+          navigate("/");
+          return;
+        }
+
+        const { data: barbeariasData } = await supabase
+          .from("barbearias")
+          .select("*")
+          .eq("admin_id", user.id)
+          .maybeSingle();
+
+        if (!barbeariasData) {
+          toast.error("Configure sua barbearia primeiro");
+          navigate("/settings");
+          return;
+        }
+
+        setBarbearia(barbeariasData);
+
+        // Buscar agendamentos
+        const { data: agendamentos } = await supabase
+          .from("agendamentos")
+          .select("*, servico:servicos(nome, preco), barbeiro:barbeiros(id, profiles:user_id(nome))")
+          .eq("barbearia_id", barbeariasData.id);
+
+        // Buscar transações
+        const { data: transacoes } = await (supabase as any)
+          .from("transacoes")
+          .select("*")
+          .eq("barbearia_id", barbeariasData.id);
+
+        // Calcular estatísticas
+        const totalAgendamentos = agendamentos?.length || 0;
+        const pendentes = agendamentos?.filter((a: any) => a.status === 'pendente').length || 0;
+        const confirmados = agendamentos?.filter((a: any) => a.status === 'confirmado').length || 0;
+        const concluidos = agendamentos?.filter((a: any) => a.status === 'concluido').length || 0;
+        
+        const faturamentoTotal = transacoes?.filter((t: any) => t.tipo === 'receita').reduce((acc: number, t: any) => acc + parseFloat(String(t.valor)), 0) || 0;
+        const ticketMedio = concluidos > 0 ? faturamentoTotal / concluidos : 0;
+
+        // Serviços mais populares
+        const servicosMap = new Map();
+        agendamentos?.forEach((a: any) => {
+          if (a.servico) {
+            const existing = servicosMap.get(a.servico.nome) || { nome: a.servico.nome, quantidade: 0, faturamento: 0 };
+            existing.quantidade += 1;
+            if (a.status === 'concluido') {
+              existing.faturamento += parseFloat(String(a.servico.preco));
+            }
+            servicosMap.set(a.servico.nome, existing);
+          }
+        });
+
+        // Performance dos barbeiros
+        const barbeirosMap = new Map();
+        agendamentos?.forEach((a: any) => {
+          if (a.barbeiro?.profiles) {
+            const nome = a.barbeiro.profiles.nome;
+            const existing = barbeirosMap.get(nome) || { nome, agendamentos: 0, faturamento: 0 };
+            existing.agendamentos += 1;
+            if (a.status === 'concluido' && a.servico) {
+              existing.faturamento += parseFloat(String(a.servico.preco));
+            }
+            barbeirosMap.set(nome, existing);
+          }
+        });
+
+        setStats({
+          agendamentos: {
+            total: totalAgendamentos,
+            pendentes,
+            confirmados,
+            concluidos
+          },
+          faturamento: {
+            total: faturamentoTotal,
+            ticketMedio
+          },
+          servicos: Array.from(servicosMap.values()).sort((a, b) => b.quantidade - a.quantidade),
+          barbeiros: Array.from(barbeirosMap.values()).sort((a, b) => b.agendamentos - a.agendamentos)
+        });
+
+      } catch (error) {
+        console.error("Erro:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+    // eslint-disable-next-line
+  }, []);
 
   const generateInsights = async () => {
     setLoadingInsights(true);

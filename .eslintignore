@@ -1,0 +1,6 @@
+dev-dist
+dist
+build
+node_modules
+.turbo
+.next

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -8,25 +8,58 @@ import { ArrowLeft, Calendar, Clock, User, Scissors, Star, Home } from "lucide-r
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useBusinessTerminology } from "@/hooks/useBusinessTerminology";
+
+import type { Tables } from "@/integrations/supabase/types";
+import { useTerminology } from "@/context/BusinessTerminologyProvider";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import { AvaliarDialog } from "@/components/AvaliarDialog";
 
+// Type for joined agendamento
+type Appointment = Tables<"agendamentos"> & {
+  cliente?: { nome: string; email: string; telefone: string | null };
+  barbeiro?: { id: string; nome: string };
+  servico?: { nome: string; preco: number; duracao: number };
+};
+
 const Appointments = () => {
   const navigate = useNavigate();
-  const { terminology } = useBusinessTerminology();
+  const { terminology } = useTerminology();
   const { isChecking } = useSubscriptionStatus();
   const [loading, setLoading] = useState(true);
-  const [agendamentos, setAgendamentos] = useState<any[]>([]);
-  const [barbearia, setBarbearia] = useState<any>(null);
-  const [avaliarAgendamento, setAvaliarAgendamento] = useState<any>(null);
+  const [agendamentos, setAgendamentos] = useState<Appointment[]>([]);
+  const [barbearia, setBarbearia] = useState<Tables<"barbearias"> | null>(null);
+  const [avaliarAgendamento, setAvaliarAgendamento] = useState<Appointment | null>(null);
   const [avaliacoesExistentes, setAvaliacoesExistentes] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const fetchAppointments: (id: string) => Promise<Appointment[]> = async (id) => {
+    const { data: agendamentosData } = await supabase
+      .from("agendamentos")
+      .select(`
+        *,
+        cliente:profiles!agendamentos_cliente_id_fkey (nome, email, telefone),
+        barbeiro:barbeiros (
+          id,
+          profiles:user_id (nome)
+        ),
+        servico:servicos (nome, preco, duracao)
+      `)
+      .eq("barbearia_id", id)
+      .order("data", { ascending: true })
+      .order("hora", { ascending: true });
 
-  const loadData = async () => {
+    // Map barbeiro to have direct nome property
+    return (agendamentosData || []).map((a: any) => ({
+      ...a,
+      barbeiro: a.barbeiro
+        ? {
+            id: a.barbeiro.id,
+            nome: a.barbeiro.profiles?.nome ?? ""
+          }
+        : undefined,
+    }));
+  };
+
+  const loadData = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -61,22 +94,8 @@ const Appointments = () => {
 
       setBarbearia(barbeariasData);
 
-      const { data: agendamentosData } = await supabase
-        .from("agendamentos")
-        .select(`
-          *,
-          cliente:profiles!agendamentos_cliente_id_fkey (nome, email, telefone),
-          barbeiro:barbeiros (
-            id,
-            profiles:user_id (nome)
-          ),
-          servico:servicos (nome, preco, duracao)
-        `)
-        .eq("barbearia_id", barbeariasData.id)
-        .order("data", { ascending: true })
-        .order("hora", { ascending: true });
-
-      setAgendamentos(agendamentosData || []);
+      const agendamentosData = await fetchAppointments(barbeariasData.id);
+      setAgendamentos(agendamentosData);
 
       // Buscar avaliações existentes
       if (agendamentosData && agendamentosData.length > 0) {
@@ -88,12 +107,16 @@ const Appointments = () => {
         const avaliacoesSet = new Set(avaliacoesData?.map(a => a.agendamento_id) || []);
         setAvaliacoesExistentes(avaliacoesSet);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Erro:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigate]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleStatusUpdate = async (id: string, newStatus: "pendente" | "confirmado" | "cancelado" | "concluido") => {
     try {
@@ -104,16 +127,17 @@ const Appointments = () => {
 
       if (error) throw error;
       
-      toast.success(`Agendamento ${newStatus === 'confirmado' ? 'confirmado' : newStatus === 'concluido' ? 'concluído' : 'cancelado'}!`);
+      const statusText = newStatus === 'confirmado' ? 'confirmado' : newStatus === 'concluido' ? 'concluído' : 'cancelado';
+      toast.success(`${terminology.appointment} ${statusText}!`);
       loadData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro:", error);
       toast.error("Erro ao atualizar status");
     }
   };
 
   const getStatusBadge = (status: string) => {
-    const variants: any = {
+    const variants: Record<string, "secondary" | "default" | "outline" | "destructive"> = {
       pendente: "secondary",
       confirmado: "default",
       concluido: "outline",
@@ -147,7 +171,7 @@ const Appointments = () => {
           </Button>
           
           <h1 className="text-3xl font-bold flex-1 text-center">
-            Agendamentos
+            {terminology.appointments}
           </h1>
           
           <div className="w-24"></div>
@@ -158,7 +182,7 @@ const Appointments = () => {
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Calendar className="h-16 w-16 text-muted-foreground mb-4" />
               <p className="text-muted-foreground text-center">
-                Nenhum agendamento encontrado.
+                {`Nenhum ${terminology.appointment.toLowerCase()} encontrado.`}
               </p>
             </CardContent>
           </Card>
@@ -169,7 +193,7 @@ const Appointments = () => {
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div>
-                      <CardTitle className="text-lg mb-1">{agendamento.cliente?.nome || "Cliente"}</CardTitle>
+                      <CardTitle className="text-lg mb-1">{agendamento.cliente?.nome || terminology.client}</CardTitle>
                       <p className="text-sm text-muted-foreground">{agendamento.cliente?.email}</p>
                     </div>
                     {getStatusBadge(agendamento.status)}
@@ -189,7 +213,7 @@ const Appointments = () => {
                     </div>
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-secondary" />
-                      <span className="text-sm">{agendamento.barbeiro?.profiles?.nome || "Barbeiro"}</span>
+                      <span className="text-sm">{agendamento.barbeiro?.nome || terminology.professional}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Scissors className="h-4 w-4 text-secondary" />

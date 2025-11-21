@@ -7,28 +7,35 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Plus, Scissors, Trash2, Edit, Clock, DollarSign, Home } from "lucide-react";
+import { Plus, Scissors, Trash2, Edit, Clock, DollarSign, Home } from "lucide-react";
 import { toast } from "sonner";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
+import { useTerminology } from "@/context/BusinessTerminologyProvider";
+
+interface ServiceData {
+  id: string;
+  nome: string;
+  preco: number;
+  duracao: number;
+  descricao?: string;
+  ativo: boolean;
+}
 
 const Services = () => {
   const navigate = useNavigate();
   const { isChecking } = useSubscriptionStatus();
   const [loading, setLoading] = useState(true);
-  const [servicos, setServicos] = useState<any[]>([]);
+  const [servicos, setServicos] = useState<ServiceData[]>([]);
   const [barbearia, setBarbearia] = useState<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingServico, setEditingServico] = useState<any>(null);
+  const [editingServico, setEditingServico] = useState<ServiceData | null>(null);
   const [formData, setFormData] = useState({
     nome: "",
     preco: "",
     duracao: "",
     descricao: ""
   });
-
-  useEffect(() => {
-    loadData();
-  }, []);
+  const { terminology } = useTerminology();
 
   const loadData = async () => {
     try {
@@ -38,7 +45,6 @@ const Services = () => {
         return;
       }
 
-      // Verificar se é admin
       const { data: profileData } = await supabase
         .from("profiles")
         .select("tipo")
@@ -78,6 +84,10 @@ const Services = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const handleSave = async () => {
     if (!formData.nome || !formData.preco || !formData.duracao) {
@@ -139,7 +149,7 @@ const Services = () => {
     }
   };
 
-  const handleEdit = (servico: any) => {
+  const handleEdit = (servico: ServiceData) => {
     setEditingServico(servico);
     setFormData({
       nome: servico.nome,
@@ -185,7 +195,7 @@ const Services = () => {
           </Button>
           
           <h1 className="text-3xl font-bold flex-1">
-            Gestão de Serviços
+            {`Gestão de ${terminology.services}`}
           </h1>
           
           <Dialog open={dialogOpen} onOpenChange={(open) => {
@@ -194,13 +204,13 @@ const Services = () => {
           }}>
             <DialogTrigger asChild>
               <Button className="bg-cyan-500 hover:bg-cyan-600 text-white font-bold px-8 py-6 rounded-full text-base">
-                <Plus className="h-5 w-5 mr-2" />
-                ADICIONAR
+                 <Plus className="h-5 w-5 mr-2" />
+                 {`Adicionar ${terminology.service}`}
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>{editingServico ? "Editar Serviço" : "Novo Serviço"}</DialogTitle>
+                 <DialogTitle>{editingServico ? `Editar ${terminology.service}` : `Novo ${terminology.service}`}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
@@ -214,7 +224,6 @@ const Services = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="preco">Preço (R$) *</Label>
                     <Input
                       id="preco"
                       type="number"
@@ -246,7 +255,7 @@ const Services = () => {
                   />
                 </div>
                 <Button onClick={handleSave} className="w-full">
-                  {editingServico ? "Atualizar" : "Cadastrar"}
+                  {editingServico ? `Atualizar ${terminology.service}` : `Cadastrar ${terminology.service}`}
                 </Button>
               </div>
             </DialogContent>
@@ -258,8 +267,8 @@ const Services = () => {
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Scissors className="h-16 w-16 text-muted-foreground mb-4" />
               <p className="text-muted-foreground text-center">
-                Nenhum serviço cadastrado ainda.<br />
-                Clique em "Adicionar Serviço" para começar.
+                 Nenhum {terminology.service.toLowerCase()} cadastrado ainda.<br />
+                 Clique em {`"Adicionar ${terminology.service}"`} para começar.
               </p>
             </CardContent>
           </Card>
@@ -307,6 +316,6 @@ const Services = () => {
       </div>
     </div>
   );
-};
+}
 
 export default Services;

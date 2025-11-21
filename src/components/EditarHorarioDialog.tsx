@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { useTerminology } from "@/context/BusinessTerminologyProvider";
 
 interface EditarHorarioDialogProps {
   open: boolean;
@@ -39,6 +40,7 @@ export const EditarHorarioDialog = ({
   const [horarioInicio, setHorarioInicio] = useState("");
   const [horarioFim, setHorarioFim] = useState("");
   const [loading, setLoading] = useState(false);
+  const { terminology } = useTerminology();
 
   useEffect(() => {
     if (barbeiro) {
@@ -100,7 +102,7 @@ export const EditarHorarioDialog = ({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Editar Horário - {barbeiro.nome}</DialogTitle>
+          <DialogTitle>{`Editar ${terminology.schedule} - ${barbeiro.nome}`}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
@@ -150,7 +152,7 @@ export const EditarHorarioDialog = ({
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={loading}>
-            Cancelar
+            {"Cancelar"}
           </Button>
           <Button onClick={handleSubmit} disabled={loading}>
             {loading ? "Salvando..." : "Salvar"}

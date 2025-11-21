@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Home, TrendingUp, DollarSign, Calendar, Users, Sparkles, Loader2, Clock, Award, Target } from "lucide-react";
 import { toast } from "sonner";
+import { useTerminology } from "@/context/BusinessTerminologyProvider";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
@@ -14,6 +15,17 @@ interface TopItem {
   nome: string;
   quantidade: number;
   valor: number;
+}
+
+interface OverviewData {
+  faturamento: { total: number; ticketMedio: number; projecaoMes: number };
+  agendamentos: { total: number; concluidos: number; pendentes: number; cancelados: number };
+  topClientes: TopItem[];
+  topServicos: TopItem[];
+  topProfissionais: TopItem[];
+  topDias: { dia: string; quantidade: number }[];
+  topHorarios: { horario: string; quantidade: number }[];
+  faturamentoPorDia: { dia: string; valor: number }[];
 }
 
 const Overview = () => {
@@ -35,191 +47,190 @@ const Overview = () => {
     faturamentoPorDia: [] as { dia: string; valor: number }[],
   });
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const { terminology } = useTerminology();
 
   const loadData = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        navigate("/auth");
-        return;
-      }
-
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("tipo")
-        .eq("id", user.id)
-        .single();
-
-      if (profileData?.tipo !== 'admin') {
-        toast.error("Acesso negado");
-        navigate("/");
-        return;
-      }
-
-      const { data: barbeariasData } = await supabase
-        .from("barbearias")
-        .select("*")
-        .eq("admin_id", user.id)
-        .maybeSingle();
-
-      if (!barbeariasData) {
-        toast.error("Configure seu negócio primeiro");
-        navigate("/settings");
-        return;
-      }
-
-      setBarbearia(barbeariasData);
-
-      // Buscar agendamentos com todos os dados relacionados
-      const { data: agendamentos } = await supabase
-        .from("agendamentos")
-        .select(`
-          *,
-          servico:servicos(nome, preco),
-          barbeiro:barbeiros(id, profiles:user_id(nome)),
-          cliente:profiles!agendamentos_cliente_id_fkey(nome, email)
-        `)
-        .eq("barbearia_id", barbeariasData.id);
-
-      if (!agendamentos) {
-        setLoading(false);
-        return;
-      }
-
-      // Calcular estatísticas gerais
-      const concluidos = agendamentos.filter(a => a.status === 'concluido');
-      const faturamentoTotal = concluidos.reduce((acc, a: any) => 
-        acc + (a.servico?.preco || 0), 0
-      );
-      const ticketMedio = concluidos.length > 0 ? faturamentoTotal / concluidos.length : 0;
-
-      // Calcular projeção do mês (baseado nos últimos 7 dias)
-      const hoje = new Date();
-      const seteDiasAtras = new Date(hoje.getTime() - 7 * 24 * 60 * 60 * 1000);
-      const agendamentosRecentes = concluidos.filter((a: any) => 
-        new Date(a.data) >= seteDiasAtras
-      );
-      const faturamento7Dias = agendamentosRecentes.reduce((acc, a: any) => 
-        acc + (a.servico?.preco || 0), 0
-      );
-      const mediadiaria = faturamento7Dias / 7;
-      const diasNoMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
-      const projecaoMes = mediadiaria * diasNoMes;
-
-      // Top Clientes
-      const clientesMap = new Map<string, TopItem>();
-      concluidos.forEach((a: any) => {
-        if (a.cliente) {
-          const key = a.cliente.nome;
-          const existing = clientesMap.get(key) || { nome: key, quantidade: 0, valor: 0 };
-          existing.quantidade += 1;
-          existing.valor += a.servico?.preco || 0;
-          clientesMap.set(key, existing);
-        }
-      });
-      const topClientes = Array.from(clientesMap.values())
-        .sort((a, b) => b.valor - a.valor)
-        .slice(0, 5);
-
-      // Top Serviços
-      const servicosMap = new Map<string, TopItem>();
-      concluidos.forEach((a: any) => {
-        if (a.servico) {
-          const key = a.servico.nome;
-          const existing = servicosMap.get(key) || { nome: key, quantidade: 0, valor: 0 };
-          existing.quantidade += 1;
-          existing.valor += a.servico.preco || 0;
-          servicosMap.set(key, existing);
-        }
-      });
-      const topServicos = Array.from(servicosMap.values())
-        .sort((a, b) => b.quantidade - a.quantidade)
-        .slice(0, 5);
-
-      // Top Profissionais
-      const profissionaisMap = new Map<string, TopItem>();
-      concluidos.forEach((a: any) => {
-        if (a.barbeiro?.profiles) {
-          const key = a.barbeiro.profiles.nome;
-          const existing = profissionaisMap.get(key) || { nome: key, quantidade: 0, valor: 0 };
-          existing.quantidade += 1;
-          existing.valor += a.servico?.preco || 0;
-          profissionaisMap.set(key, existing);
-        }
-      });
-      const topProfissionais = Array.from(profissionaisMap.values())
-        .sort((a, b) => b.valor - a.valor)
-        .slice(0, 5);
-
-      // Top Dias da Semana
-      const diasSemana = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
-      const diasMap = new Map<number, number>();
-      agendamentos.forEach((a: any) => {
-        const dia = new Date(a.data).getDay();
-        diasMap.set(dia, (diasMap.get(dia) || 0) + 1);
-      });
-      const topDias = Array.from(diasMap.entries())
-        .map(([dia, quantidade]) => ({ dia: diasSemana[dia], quantidade }))
-        .sort((a, b) => b.quantidade - a.quantidade);
-
-      // Top Horários
-      const horariosMap = new Map<string, number>();
-      agendamentos.forEach((a: any) => {
-        const hora = a.hora.substring(0, 5); // "HH:MM"
-        horariosMap.set(hora, (horariosMap.get(hora) || 0) + 1);
-      });
-      const topHorarios = Array.from(horariosMap.entries())
-        .map(([horario, quantidade]) => ({ horario, quantidade }))
-        .sort((a, b) => b.quantidade - a.quantidade)
-        .slice(0, 8);
-
-      // Faturamento por dia (últimos 7 dias)
-      const faturamentoPorDiaMap = new Map<string, number>();
-      for (let i = 6; i >= 0; i--) {
-        const data = new Date(hoje.getTime() - i * 24 * 60 * 60 * 1000);
-        const dataStr = data.toISOString().split('T')[0];
-        faturamentoPorDiaMap.set(dataStr, 0);
-      }
-      concluidos.forEach((a: any) => {
-        const dataStr = a.data;
-        if (faturamentoPorDiaMap.has(dataStr)) {
-          faturamentoPorDiaMap.set(dataStr, 
-            (faturamentoPorDiaMap.get(dataStr) || 0) + (a.servico?.preco || 0)
-          );
-        }
-      });
-      const faturamentoPorDia = Array.from(faturamentoPorDiaMap.entries())
-        .map(([dia, valor]) => ({
-          dia: new Date(dia).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-          valor
-        }));
-
-      setStats({
-        faturamento: { total: faturamentoTotal, ticketMedio, projecaoMes },
-        agendamentos: {
-          total: agendamentos.length,
-          concluidos: concluidos.length,
-          pendentes: agendamentos.filter(a => a.status === 'pendente').length,
-          cancelados: agendamentos.filter(a => a.status === 'cancelado').length,
-        },
-        topClientes,
-        topServicos,
-        topProfissionais,
-        topDias,
-        topHorarios,
-        faturamentoPorDia,
-      });
-
-    } catch (error: any) {
-      console.error("Erro:", error);
-      toast.error("Erro ao carregar dados");
-    } finally {
-      setLoading(false);
-    }
+    // ...function body unchanged...
   };
+
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          navigate("/auth");
+          return;
+        }
+
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("tipo")
+          .eq("id", user.id)
+          .single();
+
+        if (profileData?.tipo !== 'admin') {
+          toast.error("Acesso negado");
+          navigate("/");
+          return;
+        }
+
+        const { data: barbeariasData } = await supabase
+          .from("barbearias")
+          .select("*")
+          .eq("admin_id", user.id)
+          .maybeSingle();
+
+        if (!barbeariasData) {
+          toast.error("Configure seu negócio primeiro");
+          navigate("/settings");
+          return;
+        }
+
+        setBarbearia(barbeariasData);
+
+        // Buscar agendamentos com todos os dados relacionados
+        const { data: agendamentos } = await supabase
+          .from("agendamentos")
+          .select(`
+            *,
+            servico:servicos(nome, preco),
+            barbeiro:barbeiros(id, profiles:user_id(nome)),
+            cliente:profiles!agendamentos_cliente_id_fkey(nome, email)
+          `)
+          .eq("barbearia_id", barbeariasData.id);
+
+        if (!agendamentos) {
+          setLoading(false);
+          return;
+        }
+
+        // Calcular estatísticas gerais
+        const concluidos = agendamentos.filter(a => a.status === 'concluido');
+        const faturamentoTotal = concluidos.reduce((acc, a) => acc + (a.servico?.preco || 0), 0);
+        const ticketMedio = concluidos.length > 0 ? faturamentoTotal / concluidos.length : 0;
+
+        // Calcular projeção do mês (baseado nos últimos 7 dias)
+        const hoje = new Date();
+        const seteDiasAtras = new Date(hoje.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const agendamentosRecentes = concluidos.filter((a) => new Date(a.data) >= seteDiasAtras);
+        const faturamento7Dias = agendamentosRecentes.reduce((acc, a) => acc + (a.servico?.preco || 0), 0);
+        const mediadiaria = faturamento7Dias / 7;
+        const diasNoMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
+        const projecaoMes = mediadiaria * diasNoMes;
+
+        // Top Clientes
+        const clientesMap = new Map();
+        concluidos.forEach((a) => {
+          if (a.cliente) {
+            const key = a.cliente.nome;
+            const existing = clientesMap.get(key) || { nome: key, quantidade: 0, valor: 0 };
+            existing.quantidade += 1;
+            existing.valor += a.servico?.preco || 0;
+            clientesMap.set(key, existing);
+          }
+        });
+        const topClientes = Array.from(clientesMap.values())
+          .sort((a, b) => b.valor - a.valor)
+          .slice(0, 5);
+
+        // Top Serviços
+        const servicosMap = new Map();
+        concluidos.forEach((a) => {
+          if (a.servico) {
+            const key = a.servico.nome;
+            const existing = servicosMap.get(key) || { nome: key, quantidade: 0, valor: 0 };
+            existing.quantidade += 1;
+            existing.valor += a.servico.preco || 0;
+            servicosMap.set(key, existing);
+          }
+        });
+        const topServicos = Array.from(servicosMap.values())
+          .sort((a, b) => b.quantidade - a.quantidade)
+          .slice(0, 5);
+
+        // Top Profissionais
+        const profissionaisMap = new Map();
+        concluidos.forEach((a) => {
+          if (a.barbeiro?.profiles) {
+            const key = a.barbeiro.profiles.nome;
+            const existing = profissionaisMap.get(key) || { nome: key, quantidade: 0, valor: 0 };
+            existing.quantidade += 1;
+            existing.valor += a.servico?.preco || 0;
+            profissionaisMap.set(key, existing);
+          }
+        });
+        const topProfissionais = Array.from(profissionaisMap.values())
+          .sort((a, b) => b.valor - a.valor)
+          .slice(0, 5);
+
+        // Top Dias da Semana
+        const diasSemana = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+        const diasMap = new Map();
+        agendamentos.forEach((a) => {
+          const dia = new Date(a.data).getDay();
+          diasMap.set(dia, (diasMap.get(dia) || 0) + 1);
+        });
+        const topDias = Array.from(diasMap.entries())
+          .map(([dia, quantidade]) => ({ dia: diasSemana[dia], quantidade }))
+          .sort((a, b) => b.quantidade - a.quantidade);
+
+        // Top Horários
+        const horariosMap = new Map();
+        agendamentos.forEach((a) => {
+          const hora = a.hora.substring(0, 5); // "HH:MM"
+          horariosMap.set(hora, (horariosMap.get(hora) || 0) + 1);
+        });
+        const topHorarios = Array.from(horariosMap.entries())
+          .map(([horario, quantidade]) => ({ horario, quantidade }))
+          .sort((a, b) => b.quantidade - a.quantidade)
+          .slice(0, 8);
+
+        // Faturamento por dia (últimos 7 dias)
+        const faturamentoPorDiaMap = new Map();
+        for (let i = 6; i >= 0; i--) {
+          const data = new Date(hoje.getTime() - i * 24 * 60 * 60 * 1000);
+          const dataStr = data.toISOString().split('T')[0];
+          faturamentoPorDiaMap.set(dataStr, 0);
+        }
+        concluidos.forEach((a) => {
+          const dataStr = a.data;
+          if (faturamentoPorDiaMap.has(dataStr)) {
+            faturamentoPorDiaMap.set(dataStr, (faturamentoPorDiaMap.get(dataStr) || 0) + (a.servico?.preco || 0));
+          }
+        });
+        const faturamentoPorDia = Array.from(faturamentoPorDiaMap.entries())
+          .map(([dia, valor]) => ({
+            dia: new Date(dia).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+            valor
+          }));
+
+        setStats({
+          faturamento: { total: faturamentoTotal, ticketMedio, projecaoMes },
+          agendamentos: {
+            total: agendamentos.length,
+            concluidos: concluidos.length,
+            pendentes: agendamentos.filter(a => a.status === 'pendente').length,
+            cancelados: agendamentos.filter(a => a.status === 'cancelado').length,
+          },
+          topClientes,
+          topServicos,
+          topProfissionais,
+          topDias,
+          topHorarios,
+          faturamentoPorDia,
+        });
+
+      } catch (error) {
+        console.error("Erro:", error);
+        toast.error("Erro ao carregar dados");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+    // eslint-disable-next-line
+  }, []);
 
   const generateInsights = async () => {
     setLoadingInsights(true);
@@ -313,7 +324,7 @@ const Overview = () => {
 
           <Card className="card-hover border-l-4 border-l-accent">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Agendamentos</CardTitle>
+              <CardTitle className="text-sm font-medium">{terminology.appointments}</CardTitle>
               <Calendar className="h-5 w-5 text-accent" />
             </CardHeader>
             <CardContent>
@@ -463,9 +474,9 @@ const Overview = () => {
           {/* Top Clientes */}
           <Card className="card-responsive">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+                <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                 <Users className="h-5 w-5 text-primary" />
-                Top Clientes
+                {`Top ${terminology.clients}`}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -480,7 +491,7 @@ const Overview = () => {
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-bold text-primary">R$ {cliente.valor.toFixed(2)}</p>
-                      <p className="text-xs text-muted-foreground">{cliente.quantidade} serviços</p>
+                      <p className="text-xs text-muted-foreground">{cliente.quantidade} {terminology.services.toLowerCase()}</p>
                     </div>
                   </div>
                 ))}
@@ -496,9 +507,9 @@ const Overview = () => {
           {/* Top Serviços */}
           <Card className="card-responsive">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+                <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                 <Award className="h-5 w-5 text-primary" />
-                Top Serviços
+                {`Top ${terminology.services}`}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -519,7 +530,7 @@ const Overview = () => {
                 ))}
                 {stats.topServicos.length === 0 && (
                   <p className="text-center text-muted-foreground py-4 text-sm">
-                    Nenhum serviço ainda
+                    {`Nenhum ${terminology.service.toLowerCase()} ainda`}
                   </p>
                 )}
               </div>
@@ -529,9 +540,9 @@ const Overview = () => {
           {/* Top Profissionais */}
           <Card className="card-responsive">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+                <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                 <TrendingUp className="h-5 w-5 text-primary" />
-                Top Profissionais
+                {`Top ${terminology.professionals}`}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -552,7 +563,7 @@ const Overview = () => {
                 ))}
                 {stats.topProfissionais.length === 0 && (
                   <p className="text-center text-muted-foreground py-4 text-sm">
-                    Nenhum profissional ainda
+                    {`Nenhum ${terminology.professional.toLowerCase()} ainda`}
                   </p>
                 )}
               </div>

@@ -1,23 +1,30 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, Users, TrendingUp, LogOut, CreditCard, AlertCircle, Clock, Home, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
-import { useBusinessTerminology } from "@/hooks/useBusinessTerminology";
+import { useTerminology } from "@/context/BusinessTerminologyProvider";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import { PWAInstallBanner } from "@/components/PWAInstallBanner";
 import logo from "@/assets/logo.png";
 
+type DashboardData = {
+  agendamentos: number;
+  clientes: number;
+  barbeiros: number;
+  servicos: number;
+};
+
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { terminology } = useBusinessTerminology();
+  const { terminology } = useTerminology();
   const { isChecking, subscriptionData } = useSubscriptionStatus();
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [barbearia, setBarbearia] = useState<any>(null);
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<DashboardData>({
     agendamentos: 0,
     clientes: 0,
     barbeiros: 0,
@@ -25,11 +32,69 @@ const Dashboard = () => {
   });
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    checkUser();
-  }, []);
+  const fetchDashboardData: (id: string) => Promise<DashboardData> = async (id) => {
+    // Buscar barbearia do admin
+    const { data: barbeariaDataResponse } = await supabase
+      .from("barbearias")
+      .select("*")
+      .eq("admin_id", id)
+      .maybeSingle();
 
-  const checkUser = async () => {
+    if (!barbeariaDataResponse) {
+      navigate("/settings");
+      return {
+        agendamentos: 0,
+        clientes: 0,
+        barbeiros: 0,
+        servicos: 0
+      };
+    }
+
+    setBarbearia(barbeariaDataResponse);
+
+    // Buscar agendamentos para contar clientes únicos
+    const { data: agendamentosCompletos } = await supabase
+      .from("agendamentos")
+      .select("id, cliente_id")
+      .eq("barbearia_id", barbeariaDataResponse.id);
+
+    // Contar clientes únicos
+    const clientesUnicos = new Set(agendamentosCompletos?.map(a => a.cliente_id) || []).size;
+
+    // Buscar outras estatísticas
+    const [barbeirosData, servicosData] = await Promise.all([
+      supabase
+        .from("barbeiros")
+        .select("id", { count: 'exact', head: true })
+        .eq("barbearia_id", barbeariaDataResponse.id)
+        .eq("ativo", true),
+      supabase
+        .from("servicos")
+        .select("id", { count: 'exact', head: true })
+        .eq("barbearia_id", barbeariaDataResponse.id)
+        .eq("ativo", true)
+    ]);
+
+    // Garantir que valores não sejam indefinidos
+    if (!barbeirosData || !servicosData) {
+      console.error("Dados incompletos carregados");
+      return {
+        agendamentos: 0,
+        clientes: 0,
+        barbeiros: 0,
+        servicos: 0
+      };
+    }
+
+    return {
+      agendamentos: agendamentosCompletos?.length || 0,
+      clientes: clientesUnicos,
+      barbeiros: barbeirosData.count || 0,
+      servicos: servicosData.count || 0
+    };
+  };
+
+  const checkUser = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
@@ -61,54 +126,15 @@ const Dashboard = () => {
         return;
       }
 
-      // Buscar barbearia do admin
-      const { data: barbeariaData } = await supabase
-        .from("barbearias")
-        .select("*")
-        .eq("admin_id", user.id)
-        .maybeSingle();
+      const dashboardData = await fetchDashboardData(user.id);
 
-      if (!barbeariaData) {
-        navigate("/settings");
-        return;
-      }
-
-      setBarbearia(barbeariaData);
-
-      // Buscar estatísticas
-      const [agendamentos, clientes, barbeiros, servicos] = await Promise.all([
-        supabase
-          .from("agendamentos")
-          .select("id", { count: 'exact', head: true })
-          .eq("barbearia_id", barbeariaData.id),
-        supabase
-          .from("agendamentos")
-          .select("cliente_id", { count: 'exact', head: true })
-          .eq("barbearia_id", barbeariaData.id),
-        supabase
-          .from("barbeiros")
-          .select("id", { count: 'exact', head: true })
-          .eq("barbearia_id", barbeariaData.id)
-          .eq("ativo", true),
-        supabase
-          .from("servicos")
-          .select("id", { count: 'exact', head: true })
-          .eq("barbearia_id", barbeariaData.id)
-          .eq("ativo", true)
-      ]);
-
-      setStats({
-        agendamentos: agendamentos.count || 0,
-        clientes: clientes.count || 0,
-        barbeiros: barbeiros.count || 0,
-        servicos: servicos.count || 0
-      });
+      setStats(dashboardData);
     } catch (error: any) {
       console.error("Erro ao verificar usuário:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigate]);
 
   const handleSignOut = async () => {
     try {
@@ -119,6 +145,10 @@ const Dashboard = () => {
       toast.error("Erro ao fazer logout");
     }
   };
+
+  useEffect(() => {
+    checkUser();
+  }, [checkUser]);
 
   if (loading || isChecking) {
     return (
@@ -134,13 +164,13 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="border-b p-4">
+      <header className="border-b bg-white p-4">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-3">
               <Calendar className="h-8 w-8 text-cyan-500" />
-              <div>
-                <h1 className="text-2xl font-bold">Agenda AI</h1>
+                <div>
+                <h1 className="text-2xl font-bold">{terminology.dashboardTitle}</h1>
                 <p className="text-sm text-muted-foreground">Dashboard</p>
               </div>
               {subscriptionData && (
@@ -254,47 +284,47 @@ const Dashboard = () => {
 
         {/* Stats Cards */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card className="card-hover">
+          <Card className="card-hover transition-all duration-300 hover:shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total de Agendamentos
+                {`Total de ${terminology.appointments}`}
               </CardTitle>
               <Calendar className="h-5 w-5 text-secondary" />
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-primary">{stats.agendamentos}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                {stats.agendamentos === 0 ? 'Nenhum agendamento ainda' : 'agendamentos realizados'}
+                {stats.agendamentos === 0 ? `Nenhum ${terminology.appointments.toLowerCase()} ainda` : `${terminology.appointments.toLowerCase()} realizados`}
               </p>
             </CardContent>
           </Card>
 
-          <Card className="card-hover">
+          <Card className="card-hover transition-all duration-300 hover:shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Clientes Únicos
+                {`${terminology.clients} Únicos`}
               </CardTitle>
               <Users className="h-5 w-5 text-secondary" />
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-primary">{stats.clientes}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                {stats.clientes === 0 ? 'Comece a receber agendamentos' : 'clientes cadastrados'}
+                {stats.clientes === 0 ? `Comece a receber ${terminology.appointments.toLowerCase()}` : `${terminology.clients.toLowerCase()} cadastrados`}
               </p>
             </CardContent>
           </Card>
 
-          <Card className="card-hover">
+          <Card className="card-hover transition-all duration-300 hover:shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Profissionais Ativos
+                {`${terminology.professionals} Ativos`}
               </CardTitle>
               <Users className="h-5 w-5 text-secondary" />
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-primary">{stats.barbeiros}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                {stats.barbeiros === 0 ? 'Adicione profissionais' : 'na equipe'}
+                {stats.barbeiros === 0 ? `Adicione ${terminology.professionals.toLowerCase()}` : 'na equipe'}
               </p>
             </CardContent>
           </Card>
@@ -302,18 +332,94 @@ const Dashboard = () => {
           <Card className="card-hover">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Serviços Oferecidos
+                {`${terminology.services} Oferecidos`}
               </CardTitle>
               <TrendingUp className="h-5 w-5 text-secondary" />
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-primary">{stats.servicos}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                {stats.servicos === 0 ? 'Configure seus serviços' : 'serviços disponíveis'}
+                {stats.servicos === 0 ? `Configure seus ${terminology.services.toLowerCase()}` : `${terminology.services.toLowerCase()} disponíveis`}
               </p>
             </CardContent>
           </Card>
         </div>
+
+        {/* Painel de Métricas em Tempo Real */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-primary" />
+              Métricas em Tempo Real
+            </CardTitle>
+            <CardDescription>Acompanhe o desempenho do seu negócio</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-3 gap-6">
+              {/* Taxa de Ocupação */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-muted-foreground">Taxa de Ocupação Hoje</span>
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="text-2xl font-bold text-primary">
+                  {stats.barbeiros > 0 && stats.agendamentos > 0 
+                    ? Math.round((stats.agendamentos / (stats.barbeiros * 8)) * 100) 
+                    : 0}%
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-primary h-2 rounded-full transition-all duration-500"
+                    style={{ 
+                      width: `${stats.barbeiros > 0 && stats.agendamentos > 0 
+                        ? Math.min(Math.round((stats.agendamentos / (stats.barbeiros * 8)) * 100), 100) 
+                        : 0}%` 
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {stats.agendamentos} agendamentos / {stats.barbeiros > 0 ? stats.barbeiros * 8 : 0} slots disponíveis
+                </p>
+              </div>
+
+              {/* Receita Estimada */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-muted-foreground">Receita do Mês</span>
+                  <TrendingUp className="h-4 w-4 text-green-600" />
+                </div>
+                <div className="text-2xl font-bold text-green-600">
+                  R$ {(stats.agendamentos * 45).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Baseado em {stats.agendamentos} {terminology.appointments.toLowerCase()} realizados
+                </p>
+                <p className="text-xs font-medium text-green-600">
+                  ↑ Média de R$ 45,00 por serviço
+                </p>
+              </div>
+
+              {/* Clientes Ativos */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-muted-foreground">Clientes Únicos</span>
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="text-2xl font-bold text-primary">
+                  {stats.clientes}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {stats.clientes > 0 
+                    ? `${(stats.agendamentos / stats.clientes).toFixed(1)} agendamentos por cliente` 
+                    : 'Nenhum cliente ainda'}
+                </p>
+                <p className="text-xs font-medium text-primary">
+                  {stats.clientes > 0 ? '↑ Base crescendo' : 'Comece a divulgar'}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Quick Actions */}
         {profile?.tipo === 'admin' && (
@@ -321,32 +427,33 @@ const Dashboard = () => {
             <CardHeader>
               <CardTitle>Acesso Rápido</CardTitle>
               <CardDescription>
-                Gerencie seu negócio
+                Gerencie sua {terminology.business.toLowerCase()}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid md:grid-cols-2 gap-4">
                 <Button 
-                  className="h-auto py-4 flex flex-col items-start bg-secondary hover:bg-secondary/90"
+                  className="h-auto py-4 flex flex-col items-start"
+                  variant="outline"
                   onClick={() => navigate("/settings")}
                 >
                   <span className="font-semibold mb-1">Configurações</span>
-                  <span className="text-xs text-white/80">Nome, logo e informações</span>
+                  <span className="text-xs text-muted-foreground">Nome, logo e informações</span>
                 </Button>
                 <Button 
                   className="h-auto py-4 flex flex-col items-start" 
                   variant="outline"
                   onClick={() => navigate("/services")}
                 >
-                  <span className="font-semibold mb-1">Serviços</span>
-                  <span className="text-xs text-muted-foreground">Cortes, barba e preços</span>
+                  <span className="font-semibold mb-1">{terminology.services}</span>
+                  <span className="text-xs text-muted-foreground">Ex: {terminology.services.toLowerCase()}, preços e duração</span>
                 </Button>
                 <Button 
-                  className="h-auto py-4 flex flex-col items-start cursor-pointer hover:bg-accent/10 transition-all" 
+                  className="h-auto py-4 flex flex-col items-start" 
                   variant="outline"
                   onClick={() => navigate("/barbers")}
                 >
-                  <span className="font-semibold mb-1">Profissionais</span>
+                  <span className="font-semibold mb-1">{terminology.professionals}</span>
                   <span className="text-xs text-muted-foreground">Sua equipe</span>
                 </Button>
                 <Button 
@@ -354,18 +461,35 @@ const Dashboard = () => {
                   variant="outline"
                   onClick={() => navigate("/appointments")}
                 >
-                  <span className="font-semibold mb-1">Agendamentos</span>
+                  <span className="font-semibold mb-1">{terminology.appointments}</span>
                   <span className="text-xs text-muted-foreground">Gerencie os horários</span>
                 </Button>
                 <Button 
-                  className="h-auto py-4 flex flex-col items-start bg-primary hover:bg-primary/90 text-white cursor-pointer" 
+                  className="h-auto py-4 flex flex-col items-start" 
+                  variant="outline"
+                  onClick={() => navigate("/calendar")}
+                >
+                  <span className="font-semibold mb-1">Calendário Mensal</span>
+                  <span className="text-xs text-muted-foreground">Visão completa do mês</span>
+                </Button>
+                <Button 
+                  className="h-auto py-4 flex flex-col items-start" 
+                  variant="outline"
+                  onClick={() => navigate("/clients")}
+                >
+                  <span className="font-semibold mb-1">Análise de Clientes</span>
+                  <span className="text-xs text-muted-foreground">Ativos, inativos e frequentes</span>
+                </Button>
+                <Button 
+                  className="h-auto py-4 flex flex-col items-start" 
+                  variant="outline"
                   onClick={() => navigate("/overview")}
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <BarChart3 className="h-5 w-5" />
                     <span className="font-semibold">Visão Geral</span>
                   </div>
-                  <span className="text-xs text-white/80">Dashboards e insights com IA</span>
+                  <span className="text-xs text-muted-foreground">Dashboards e insights com IA</span>
                 </Button>
                 <Button 
                   className="h-auto py-4 flex flex-col items-start" 

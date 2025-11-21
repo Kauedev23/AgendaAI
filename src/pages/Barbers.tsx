@@ -1,11 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { Tables } from "@/integrations/supabase/types";
 import {
   Dialog,
+  DialogTrigger,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -24,6 +26,7 @@ import { toast } from "sonner";
 import { Home, Plus, Loader2 } from "lucide-react";
 import { BarbeiroCard } from "@/components/BarbeiroCard";
 import { EditarHorarioDialog } from "@/components/EditarHorarioDialog";
+import { useTerminology } from "@/context/BusinessTerminologyProvider";
 
 interface Barbeiro {
   id: string;
@@ -54,11 +57,11 @@ export default function Barbers() {
   const [loading, setLoading] = useState(true);
   const [barbeiros, setBarbeiros] = useState<Barbeiro[]>([]);
   const [barbeirosStats, setBarbeirosStats] = useState<Map<string, BarbeiroStats>>(new Map());
-  const [barbearia, setBarbearia] = useState<any>(null);
+  const [barbearia, setBarbearia] = useState<Tables<"barbearias"> | null>(null);
   const [showDialog, setShowDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [editingBarbeiro, setEditingBarbeiro] = useState<any>(null);
-  const [editingHorario, setEditingHorario] = useState<any>(null);
+  const [editingBarbeiro, setEditingBarbeiro] = useState<Barbeiro | null>(null);
+  const [editingHorario, setEditingHorario] = useState<(Barbeiro & { nome: string }) | null>(null);
   const [deleteId, setDeleteId] = useState<string>("");
   const [formData, setFormData] = useState({
     nome: "",
@@ -68,12 +71,11 @@ export default function Barbers() {
     especialidades: "",
   });
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const { terminology } = useTerminology();
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
+      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         navigate("/auth");
@@ -87,7 +89,7 @@ export default function Barbers() {
         .single();
 
       if (!barberiaData) {
-        toast.error("Configure sua barbearia primeiro");
+        toast.error(`Configure sua ${terminology.business} primeiro`);
         navigate("/settings");
         return;
       }
@@ -110,15 +112,20 @@ export default function Barbers() {
       setBarbeiros(barbeirosData || []);
       
       await loadAllStats(barbeirosData || [], barberiaData.id);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro ao carregar dados:", error);
-      toast.error("Erro ao carregar barbeiros");
+      toast.error(`Erro ao carregar ${terminology.professionals.toLowerCase()}`);
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigate, terminology.business, terminology.professionals]);
 
-  const loadAllStats = async (barbeiros: Barbeiro[], barbeariaId: string) => {
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line
+  }, [loadData]);
+
+  const loadAllStats = useCallback(async (barbeiros: Barbeiro[], barbeariaId: string) => {
     const statsMap = new Map<string, BarbeiroStats>();
     
     for (const barbeiro of barbeiros) {
@@ -127,7 +134,7 @@ export default function Barbers() {
     }
     
     setBarbeirosStats(statsMap);
-  };
+  }, []);
 
   const getBarbeiroStats = async (barbeiroId: string, barbeariaId: string): Promise<BarbeiroStats> => {
     try {
@@ -184,7 +191,7 @@ export default function Barbers() {
     }
 
     if (!editingBarbeiro && !formData.senha) {
-      toast.error("Senha é obrigatória para novos barbeiros");
+      toast.error(`Senha é obrigatória para novos ${terminology.professional.toLowerCase()}`);
       return;
     }
 
@@ -215,7 +222,7 @@ export default function Barbers() {
 
         if (barbeiroError) throw barbeiroError;
 
-        toast.success("Barbeiro atualizado!");
+        toast.success(`${terminology.professional} atualizado!`);
       } else {
         const { data, error } = await supabase.functions.invoke(
           "create-barber-user",
@@ -234,15 +241,15 @@ export default function Barbers() {
         );
 
         if (error) throw error;
-        toast.success("Barbeiro criado com sucesso!");
+        toast.success(`${terminology.professional} criado com sucesso!`);
       }
 
       setShowDialog(false);
       resetForm();
       loadData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro ao salvar:", error);
-      toast.error(error.message || "Erro ao salvar barbeiro");
+      toast.error(error instanceof Error ? error.message : `Erro ao salvar ${terminology.professional.toLowerCase()}`);
     }
   };
 
@@ -255,12 +262,12 @@ export default function Barbers() {
 
       if (error) throw error;
 
-      toast.success("Barbeiro removido!");
+      toast.success(`${terminology.professional} removido!`);
       setShowDeleteDialog(false);
       loadData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro ao deletar:", error);
-      toast.error("Erro ao remover barbeiro");
+      toast.error(`Erro ao remover ${terminology.professional.toLowerCase()}`);
     }
   };
 
@@ -307,7 +314,10 @@ export default function Barbers() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
       </div>
     );
   }
@@ -326,31 +336,87 @@ export default function Barbers() {
           </Button>
           
           <h1 className="text-3xl font-bold flex-1">
-            Meus profissionais
+            Meus {terminology.professionals}
           </h1>
           
-          <Button
-            onClick={() => {
-              resetForm();
-              setShowDialog(true);
-            }}
-            className="bg-cyan-500 hover:bg-cyan-600 text-white font-bold px-8 py-6 rounded-full text-base"
-          >
-            ADICIONAR
-          </Button>
-        </header>
+          <Dialog open={showDialog} onOpenChange={(open) => { setShowDialog(open); if (!open) resetForm(); }}>
+            <DialogTrigger asChild>
+                <Button className="bg-cyan-500 hover:bg-cyan-600 text-white font-bold px-8 py-6 rounded-full text-base">
+                  <Plus className="h-5 w-5 mr-2" />
+                  {`Adicionar ${terminology.professional}`}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                   <DialogTitle>{editingBarbeiro ? `Editar ${terminology.professional}` : `Novo ${terminology.professional}`}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div>
+                    <Label htmlFor="nome">Nome</Label>
+                    <Input
+                      id="nome"
+                      value={formData.nome}
+                      onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      disabled={!!editingBarbeiro}
+                    />
+                  </div>
+                  {!editingBarbeiro && (
+                    <div>
+                      <Label htmlFor="senha">Senha</Label>
+                      <Input
+                        id="senha"
+                        type="password"
+                        value={formData.senha}
+                        onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
+                      />
+                    </div>
+                  )}
+                  <div>
+                    <Label htmlFor="bio">Bio (opcional)</Label>
+                    <Input
+                      id="bio"
+                      value={formData.bio}
+                      onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="especialidades">Especialidades (separadas por vírgula)</Label>
+                    <Input
+                      id="especialidades"
+                      value={formData.especialidades}
+                      onChange={(e) => setFormData({ ...formData, especialidades: e.target.value })}
+                      placeholder="Corte, Barba, Coloração"
+                    />
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button variant="outline" onClick={() => { setShowDialog(false); resetForm(); }}>Cancelar</Button>
+                    <Button onClick={handleSave}>Salvar</Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </header>
 
-        {barbeiros.length === 0 ? (
+          {barbeiros.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-muted-foreground mb-4">
-              Nenhum barbeiro cadastrado ainda
+              Nenhum {terminology.professionals.toLowerCase()} cadastrado ainda
             </p>
             <Button 
               onClick={() => setShowDialog(true)}
               className="bg-cyan-500 hover:bg-cyan-600"
             >
               <Plus className="h-4 w-4 mr-2" />
-              Adicionar Primeiro Barbeiro
+              {`Adicionar Primeiro ${terminology.professional}`}
             </Button>
           </div>
         ) : (
@@ -361,7 +427,7 @@ export default function Barbers() {
                 barbeiro={{
                   ...barbeiro,
                   nome: barbeiro.profiles.nome,
-                }}
+                } as Barbeiro & { nome: string }}
                 stats={barbeirosStats.get(barbeiro.id) || {
                   faturamento: 0,
                   servicos_realizados: 0,
@@ -378,90 +444,7 @@ export default function Barbers() {
           </div>
         )}
 
-        <Dialog open={showDialog} onOpenChange={setShowDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {editingBarbeiro ? "Editar Barbeiro" : "Novo Barbeiro"}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="nome">Nome</Label>
-                <Input
-                  id="nome"
-                  value={formData.nome}
-                  onChange={(e) =>
-                    setFormData({ ...formData, nome: e.target.value })
-                  }
-                />
-              </div>
-              <div>
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                  disabled={!!editingBarbeiro}
-                />
-              </div>
-              {!editingBarbeiro && (
-                <div>
-                  <Label htmlFor="senha">Senha</Label>
-                  <Input
-                    id="senha"
-                    type="password"
-                    value={formData.senha}
-                    onChange={(e) =>
-                      setFormData({ ...formData, senha: e.target.value })
-                    }
-                  />
-                </div>
-              )}
-              <div>
-                <Label htmlFor="bio">Bio (opcional)</Label>
-                <Input
-                  id="bio"
-                  value={formData.bio}
-                  onChange={(e) =>
-                    setFormData({ ...formData, bio: e.target.value })
-                  }
-                />
-              </div>
-              <div>
-                <Label htmlFor="especialidades">
-                  Especialidades (separadas por vírgula)
-                </Label>
-                <Input
-                  id="especialidades"
-                  value={formData.especialidades}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      especialidades: e.target.value,
-                    })
-                  }
-                  placeholder="Corte, Barba, Coloração"
-                />
-              </div>
-              <div className="flex gap-2 justify-end">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowDialog(false);
-                    resetForm();
-                  }}
-                >
-                  Cancelar
-                </Button>
-                <Button onClick={handleSave}>Salvar</Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+        
 
         <EditarHorarioDialog
           open={!!editingHorario}
@@ -475,7 +458,7 @@ export default function Barbers() {
             <AlertDialogHeader>
               <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
               <AlertDialogDescription>
-                Tem certeza que deseja remover este barbeiro? Esta ação não pode
+                Tem certeza que deseja remover este {terminology.professional.toLowerCase()}? Esta ação não pode
                 ser desfeita.
               </AlertDialogDescription>
             </AlertDialogHeader>

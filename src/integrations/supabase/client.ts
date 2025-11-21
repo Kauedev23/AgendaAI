@@ -8,9 +8,18 @@ const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+  // Log informativo para facilitar debug em dev
+  // eslint-disable-next-line no-console
+  console.error('[supabase] Missing environment variables: VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY.\n', {
+    SUPABASE_URL,
+    SUPABASE_PUBLISHABLE_KEY: SUPABASE_PUBLISHABLE_KEY ? '***present***' : SUPABASE_PUBLISHABLE_KEY,
+  });
+}
+
+export const supabase = createClient<Database>(SUPABASE_URL as string, SUPABASE_PUBLISHABLE_KEY as string, {
   auth: {
-    storage: localStorage,
+    storage: typeof window !== 'undefined' ? localStorage : undefined,
     persistSession: true,
     autoRefreshToken: true,
   }

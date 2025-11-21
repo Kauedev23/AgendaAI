@@ -11,28 +11,43 @@ serve(async (req) => {
   }
 
   try {
-    const { agendamentos, faturamento, servicosData, barbeirosData } = await req.json();
+    const { agendamentos, faturamento, servicosData, barbeirosData, tipo_comercio } = await req.json();
     
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY não configurada");
     }
 
-    // Preparar prompt com dados do negócio
+    // Determine terminology (fallback to agendamentos/profissionais)
+    const termsMap: Record<string, { appointments: string; appointment: string; services: string; professionals: string }> = {
+      barbearia: { appointments: 'Agendamentos', appointment: 'Agendamento', services: 'Serviços', professionals: 'Profissionais' },
+      salao: { appointments: 'Agendamentos', appointment: 'Agendamento', services: 'Serviços', professionals: 'Profissionais' },
+      tatuagem: { appointments: 'Sessões', appointment: 'Sessão', services: 'Serviços', professionals: 'Tatuadores' },
+      spa: { appointments: 'Sessões', appointment: 'Sessão', services: 'Tratamentos', professionals: 'Terapeutas' },
+      estetica: { appointments: 'Consultas', appointment: 'Consulta', services: 'Procedimentos', professionals: 'Esteticistas' },
+      consultorio: { appointments: 'Consultas', appointment: 'Consulta', services: 'Consultas', professionals: 'Profissionais' },
+      personal: { appointments: 'Sessões', appointment: 'Sessão', services: 'Treinos', professionals: 'Personals' },
+      oficina: { appointments: 'Atendimentos', appointment: 'Atendimento', services: 'Serviços', professionals: 'Especialistas' },
+      outro: { appointments: 'Agendamentos', appointment: 'Agendamento', services: 'Serviços', professionals: 'Profissionais' }
+    };
+
+    const t = termsMap[tipo_comercio] || termsMap.barbearia;
+
+    // Preparar prompt com dados do negócio usando termos adequados
     const prompt = `Você é um consultor de negócios. Analise os seguintes dados e gere 3-5 insights acionáveis e práticos para melhorar o negócio:
 
 DADOS DO NEGÓCIO:
-- Total de agendamentos este mês: ${agendamentos.total}
-- Agendamentos pendentes: ${agendamentos.pendentes}
-- Agendamentos confirmados: ${agendamentos.confirmados}
-- Agendamentos concluídos: ${agendamentos.concluidos}
+- Total de ${t.appointments} este mês: ${agendamentos.total}
+- ${t.appointments} pendentes: ${agendamentos.pendentes}
+- ${t.appointments} confirmados: ${agendamentos.confirmados}
+- ${t.appointments} concluídos: ${agendamentos.concluidos}
 - Faturamento total: R$ ${faturamento.total.toFixed(2)}
 - Ticket médio: R$ ${faturamento.ticketMedio.toFixed(2)}
 
-SERVIÇOS MAIS POPULARES:
-${servicosData.map((s: any) => `- ${s.nome}: ${s.quantidade} agendamentos (R$ ${(s.faturamento || 0).toFixed(2)})`).join('\n')}
+${t.services.toUpperCase()} MAIS POPULARES:
+${servicosData.map((s: any) => `- ${s.nome}: ${s.quantidade} ${t.appointments.toLowerCase()} (R$ ${(s.faturamento || 0).toFixed(2)})`).join('\n')}
 
-PERFORMANCE DOS PROFISSIONAIS:
+PERFORMANCE DOS ${t.professionals.toUpperCase()}:
 ${barbeirosData.map((b: any) => `- ${b.nome}: ${b.agendamentos} atendimentos (R$ ${(b.faturamento || 0).toFixed(2)})`).join('\n')}
 
 Gere insights práticos e específicos, focando em:

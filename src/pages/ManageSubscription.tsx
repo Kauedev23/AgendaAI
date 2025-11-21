@@ -8,16 +8,14 @@ import { ArrowLeft, Calendar, CheckCircle, XCircle, Clock, CreditCard, AlertCirc
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useTerminology } from "@/context/BusinessTerminologyProvider";
 
 const ManageSubscription = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [barbearia, setBarbearia] = useState<any>(null);
   const [cancelling, setCancelling] = useState(false);
-
-  useEffect(() => {
-    loadSubscriptionData();
-  }, []);
+  const { terminology } = useTerminology();
 
   const loadSubscriptionData = async () => {
     try {
@@ -57,6 +55,10 @@ const ManageSubscription = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadSubscriptionData();
+  }, [loadSubscriptionData]);
 
   const handleManageSubscription = async () => {
     setCancelling(true);
@@ -270,9 +272,9 @@ const ManageSubscription = () => {
 
               <div className="space-y-2">
                 {[
-                  "Profissionais ilimitados",
-                  "Agendamentos ilimitados",
-                  "Página de agendamento personalizada",
+                  `${terminology.professionals} ilimitados`,
+                  `${terminology.appointments} ilimitados`,
+                  `Página de ${terminology.appointments.toLowerCase()} personalizada`,
                   "Painel financeiro completo",
                   "Insights com IA",
                   "Relatórios detalhados",

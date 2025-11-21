@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Calendar, Phone, User, Loader2, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, Location } from "react-router-dom";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -35,8 +35,9 @@ const ClientAuth = () => {
   const location = useLocation();
   
   // Extrair slug da URL de origem
-  const from = (location.state as any)?.from;
-  const redirectPath = from || '/';
+  type LocationState = { from?: string };
+  const state = location.state as LocationState | null;
+  const redirectPath = state?.from || '/';
 
   const formatPhone = (value: string) => {
     const numbers = value.replace(/\D/g, "");
@@ -88,7 +89,7 @@ const ClientAuth = () => {
 
           toast.success(`Bem-vindo de volta, ${existingProfile.nome}!`);
           navigate(redirectPath, { replace: true });
-        } catch (error: any) {
+        } catch (error: unknown) {
           toast.error("Erro ao fazer login");
           console.error(error);
         }
@@ -96,7 +97,7 @@ const ClientAuth = () => {
         // Novo cliente - solicitar informações adicionais
         setStep("profile");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error("Erro ao processar telefone");
       console.error(error);
     } finally {
@@ -176,8 +177,8 @@ const ClientAuth = () => {
       await new Promise(resolve => setTimeout(resolve, 500));
       
       navigate(redirectPath, { replace: true });
-    } catch (error: any) {
-      toast.error(error.message || "Erro ao criar conta");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Erro ao criar conta");
       console.error(error);
     } finally {
       setLoading(false);

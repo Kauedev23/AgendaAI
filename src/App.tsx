@@ -2,6 +2,7 @@ import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { BusinessTerminologyProvider } from "@/context/BusinessTerminologyProvider";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { InstallPWA } from "@/components/InstallPWA";
@@ -15,6 +16,8 @@ import Settings from "./pages/Settings";
 import Barbers from "./pages/Barbers";
 import Services from "./pages/Services";
 import Appointments from "./pages/Appointments";
+import MonthlyCalendar from "./pages/MonthlyCalendar";
+import ClientAnalysis from "./pages/ClientAnalysis";
 import Reports from "./pages/Reports";
 import Overview from "./pages/Overview";
 import ClientAuth from "./pages/ClientAuth";
@@ -27,13 +30,14 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <InstallPWA />
-      <UpdatePrompt />
-      <NotificationManager />
-      <BrowserRouter>
+    <BusinessTerminologyProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <InstallPWA />
+        <UpdatePrompt />
+        <NotificationManager />
+        <BrowserRouter>
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/auth" element={<Auth />} />
@@ -43,6 +47,8 @@ const App = () => (
           <Route path="/barbers" element={<Barbers />} />
           <Route path="/services" element={<Services />} />
           <Route path="/appointments" element={<Appointments />} />
+          <Route path="/calendar" element={<MonthlyCalendar />} />
+          <Route path="/clients" element={<ClientAnalysis />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/overview" element={<Overview />} />
           <Route path="/subscription" element={<Subscription />} />
@@ -52,8 +58,9 @@ const App = () => (
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </BusinessTerminologyProvider>
   </QueryClientProvider>
 );
 

@@ -59,55 +59,16 @@ export const getDefaultServices = (tipoComercio: string) => {
   return servicesMap[tipoComercio] || servicesMap.outro;
 };
 
-// Textos customizados por tipo de comércio
-export const getCustomTexts = (tipoComercio: string) => {
-  const textsMap: Record<string, { titulo: string; subtitulo: string; ctaButton: string }> = {
-    barbearia: {
-      titulo: "Agende seu corte",
-      subtitulo: "Escolha o profissional e horário ideal para você",
-      ctaButton: "Agendar Horário"
-    },
-    salao: {
-      titulo: "Agende seu atendimento",
-      subtitulo: "Beleza e cuidados especiais para você",
-      ctaButton: "Fazer Agendamento"
-    },
-    tatuagem: {
-      titulo: "Agende sua sessão",
-      subtitulo: "Transforme sua arte em realidade",
-      ctaButton: "Agendar Sessão"
-    },
-    spa: {
-      titulo: "Reserve seu momento",
-      subtitulo: "Relaxamento e bem-estar te esperam",
-      ctaButton: "Reservar Horário"
-    },
-    estetica: {
-      titulo: "Agende seu procedimento",
-      subtitulo: "Cuidados estéticos com profissionais qualificados",
-      ctaButton: "Agendar Consulta"
-    },
-    consultorio: {
-      titulo: "Agende sua consulta",
-      subtitulo: "Atendimento profissional e personalizado",
-      ctaButton: "Marcar Consulta"
-    },
-    personal: {
-      titulo: "Agende seu treino",
-      subtitulo: "Resultados através de treinos personalizados",
-      ctaButton: "Agendar Treino"
-    },
-    oficina: {
-      titulo: "Agende seu serviço",
-      subtitulo: "Qualidade e confiança para seu veículo",
-      ctaButton: "Agendar Serviço"
-    },
-    outro: {
-      titulo: "Agende seu atendimento",
-      subtitulo: "Escolha o melhor horário para você",
-      ctaButton: "Fazer Agendamento"
-    }
-  };
+// Textos customizados por tipo de comércio — derivados do map de terminologia
+import { getBusinessTerminology } from "@/utils/businessTerminology";
 
-  return textsMap[tipoComercio] || textsMap.outro;
+export const getCustomTexts = (tipoComercio: string) => {
+  const terminology = getBusinessTerminology(tipoComercio || "barbearia");
+
+  return {
+    titulo: terminology.publicPageTitle,
+    subtitulo: terminology.publicPageDescription,
+    // CTA genérico consistente: 'Agendar Horário' funciona para a maioria dos tipos
+    ctaButton: "Agendar Horário",
+  };
 };
