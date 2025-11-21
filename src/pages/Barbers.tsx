@@ -27,6 +27,7 @@ import { Home, Plus, Loader2 } from "lucide-react";
 import { BarbeiroCard } from "@/components/BarbeiroCard";
 import { EditarHorarioDialog } from "@/components/EditarHorarioDialog";
 import { useTerminology } from "@/context/BusinessTerminologyProvider";
+import { ImageUpload } from "@/components/ImageUpload";
 
 interface Barbeiro {
   id: string;
@@ -69,6 +70,7 @@ export default function Barbers() {
     senha: "",
     bio: "",
     especialidades: "",
+    foto_url: "",
   });
 
   const { terminology } = useTerminology();
@@ -217,6 +219,7 @@ export default function Barbers() {
             especialidades: formData.especialidades
               ? formData.especialidades.split(",").map((e) => e.trim())
               : null,
+            foto_url: formData.foto_url || null,
           })
           .eq("id", editingBarbeiro.id);
 
@@ -236,6 +239,7 @@ export default function Barbers() {
               especialidades: formData.especialidades
                 ? formData.especialidades.split(",").map((e) => e.trim())
                 : null,
+              foto_url: formData.foto_url || null,
             },
           }
         );
@@ -279,6 +283,7 @@ export default function Barbers() {
       senha: "",
       bio: barbeiro.bio || "",
       especialidades: barbeiro.especialidades?.join(", ") || "",
+      foto_url: barbeiro.foto_url || "",
     });
     setShowDialog(true);
   };
@@ -307,6 +312,7 @@ export default function Barbers() {
       senha: "",
       bio: "",
       especialidades: "",
+      foto_url: "",
     });
     setEditingBarbeiro(null);
   };
@@ -351,6 +357,12 @@ export default function Barbers() {
                    <DialogTitle>{editingBarbeiro ? `Editar ${terminology.professional}` : `Novo ${terminology.professional}`}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
+                  <ImageUpload
+                    currentImage={formData.foto_url}
+                    onImageChange={(url) => setFormData({ ...formData, foto_url: url })}
+                    placeholder="Carregar foto do profissional"
+                    size="md"
+                  />
                   <div>
                     <Label htmlFor="nome">Nome</Label>
                     <Input
