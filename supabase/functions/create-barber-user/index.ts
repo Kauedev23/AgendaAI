@@ -27,7 +27,7 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const { email, nome, telefone, barbearia_id, bio, especialidades } = await req.json();
+    const { email, nome, telefone, barbearia_id, bio, especialidades, foto_url } = await req.json();
 
     console.log('Recebendo solicitação para criar barbeiro:', { email, nome, barbearia_id });
 
@@ -142,7 +142,8 @@ serve(async (req) => {
         user_id: newUser.user.id,
         barbearia_id,
         bio,
-        especialidades
+        especialidades,
+        foto_url
       });
 
     if (barbeiroError) {
