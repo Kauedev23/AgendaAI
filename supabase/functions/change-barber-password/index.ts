@@ -54,12 +54,35 @@ serve(async (req) => {
 
     console.log('Usuário autenticado:', user.id);
 
+    // Define terminology map first
+    const termsMap: Record<string, { business: string; professional: string; professionals: string }> = {
+      barbearia: { business: 'Barbearia', professional: 'Barbeiro', professionals: 'Barbeiros' },
+      salao: { business: 'Salão', professional: 'Profissional', professionals: 'Profissionais' },
+      tatuagem: { business: 'Estúdio', professional: 'Tatuador', professionals: 'Tatuadores' },
+      spa: { business: 'Spa', professional: 'Terapeuta', professionals: 'Terapeutas' },
+      estetica: { business: 'Clínica', professional: 'Esteticista', professionals: 'Esteticistas' },
+      consultorio: { business: 'Consultório', professional: 'Profissional', professionals: 'Profissionais' },
+      personal: { business: 'Academia', professional: 'Personal', professionals: 'Personals' },
+      oficina: { business: 'Oficina', professional: 'Especialista', professionals: 'Especialistas' },
+      outro: { business: 'Negócio', professional: 'Profissional', professionals: 'Profissionais' }
+    };
+
     // Buscar o barbeiro e verificar se o usuário atual é admin da mesma barbearia
     const { data: barbeiro, error: barbeiroError } = await supabaseClient
       .from('barbeiros')
       .select('barbearia_id')
       .eq('user_id', barbeiro_user_id)
       .single();
+
+    // Verificar se o usuário atual é admin da barbearia do barbeiro
+    const { data: barbearia, error: barbeariaError } = await supabaseClient
+      .from('barbearias')
+      .select('admin_id, tipo_comercio')
+      .eq('id', barbeiro?.barbearia_id)
+      .single();
+
+    const businessType = barbearia?.tipo_comercio || 'barbearia';
+    const terms = termsMap[businessType] || termsMap.barbearia;
 
     if (barbeiroError || !barbeiro) {
       console.error('Erro ao buscar barbeiro:', barbeiroError);
@@ -69,13 +92,6 @@ serve(async (req) => {
       );
     }
 
-    // Verificar se o usuário atual é admin da barbearia do barbeiro
-    const { data: barbearia, error: barbeariaError } = await supabaseClient
-      .from('barbearias')
-        .select('admin_id, tipo_comercio')
-      .eq('id', barbeiro.barbearia_id)
-      .single();
-
     if (barbeariaError || !barbearia) {
       console.error('Erro ao buscar barbearia:', barbeariaError);
       return new Response(
@@ -84,20 +100,6 @@ serve(async (req) => {
       );
     }
 
-      const termsMap: Record<string, { business: string; professional: string; professionals: string }> = {
-        barbearia: { business: 'Barbearia', professional: 'Barbeiro', professionals: 'Barbeiros' },
-        salao: { business: 'Salão', professional: 'Profissional', professionals: 'Profissionais' },
-        tatuagem: { business: 'Estúdio', professional: 'Tatuador', professionals: 'Tatuadores' },
-        spa: { business: 'Spa', professional: 'Terapeuta', professionals: 'Terapeutas' },
-        estetica: { business: 'Clínica', professional: 'Esteticista', professionals: 'Esteticistas' },
-        consultorio: { business: 'Consultório', professional: 'Profissional', professionals: 'Profissionais' },
-        personal: { business: 'Academia', professional: 'Personal', professionals: 'Personals' },
-        oficina: { business: 'Oficina', professional: 'Especialista', professionals: 'Especialistas' },
-        outro: { business: 'Negócio', professional: 'Profissional', professionals: 'Profissionais' }
-      };
-
-      const businessType = barbearia?.tipo_comercio || 'barbearia';
-      const terms = termsMap[businessType] || termsMap.barbearia;
     if (barbearia.admin_id !== user.id) {
       console.error('Usuário não é admin da barbearia');
       return new Response(
