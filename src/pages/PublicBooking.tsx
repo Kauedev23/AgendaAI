@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, User, Check, ArrowLeft, ArrowRight, Phone, MapPin, Loader2, CheckCircle2 } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { Calendar, Clock, User, Check, ArrowLeft, ArrowRight, Mail, Lock, MapPin, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { format, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -39,12 +40,13 @@ const PublicBooking = () => {
   const [availableTimes, setAvailableTimes] = useState<string[]>([]);
   const [step, setStep] = useState(0);
   const [bookingSuccess, setBookingSuccess] = useState(false);
-  const [telefone, setTelefone] = useState("");
-  const [rawTelefone, setRawTelefone] = useState("");
-  const [phoneLoading, setPhoneLoading] = useState(false);
-  const [showNameInput, setShowNameInput] = useState(false);
-  const [clienteName, setClienteName] = useState("");
-  const [welcomeName, setWelcomeName] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [isLogin, setIsLogin] = useState(true);
+  const [authData, setAuthData] = useState({
+    email: "",
+    password: "",
+    nome: "",
+  });
   const { scheduleAppointmentReminder, showNotification } = useNotifications();
   const { terminology: publicTerminology } = usePublicBusinessTerminology(slug || "");
 
@@ -72,13 +74,79 @@ const PublicBooking = () => {
       }
       setBarbearia(barbeariaData);
 
-      // Buscar barbeiros ativos
-      const { data: barbeirosData } = await supabase
+      // Primeiro, buscar todos os barbeiros sem join
+      const { data: barbeirosSimples } = await supabase
         .from("barbeiros")
-        .select("*, profiles:user_id (nome, email, telefone)")
+        .select("*")
         .eq("barbearia_id", barbeariaData.id)
         .eq("ativo", true);
-      setBarbeiros(barbeirosData || []);
+      
+      console.log("🔍 Barbeiros sem join:", barbeirosSimples);
+
+      if (barbeirosSimples && barbeirosSimples.length > 0) {
+        // Buscar profiles separadamente
+        const userIds = barbeirosSimples.map(b => b.user_id);
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("id, nome, email, telefone")
+          .in("id", userIds);
+        
+        console.log("📋 Profiles buscados:", profilesData);
+        
+        // Verificar quais barbeiros NÃO têm profile e criar
+        const profileIds = new Set(profilesData?.map(p => p.id) || []);
+        const barbeirossSemProfile = barbeirosSimples.filter(b => !profileIds.has(b.user_id));
+        
+        if (barbeirossSemProfile.length > 0) {
+          console.log("⚠️ Barbeiros sem profile, criando...", barbeirossSemProfile);
+          
+          // Criar profiles faltantes
+          const profilesToCreate = barbeirossSemProfile.map(b => ({
+            id: b.user_id,
+            nome: "Profissional", // Nome padrão
+            tipo: "barbeiro",
+            email: "",
+            telefone: "",
+            barbearia_id: b.barbearia_id
+          }));
+          
+          const { error: insertError } = await supabase
+            .from("profiles")
+            .insert(profilesToCreate);
+          
+          if (insertError) {
+            console.error("❌ Erro ao criar profiles:", insertError);
+          } else {
+            console.log("✅ Profiles criados com sucesso!");
+            // Recarregar profiles
+            const { data: newProfilesData } = await supabase
+              .from("profiles")
+              .select("id, nome, email, telefone")
+              .in("id", userIds);
+            
+            // Atualizar profilesData com os novos
+            profilesData?.push(...(newProfilesData || []));
+          }
+        }
+        
+        const barbeirosComNome = barbeirosSimples.map(b => {
+          const profile = profilesData?.find(p => p.id === b.user_id);
+          console.log(`👤 Barbeiro ${b.id} -> Profile:`, profile);
+          
+          return {
+            ...b,
+            nome: profile?.nome || "Profissional",
+            email: profile?.email || "",
+            telefone: profile?.telefone || ""
+          };
+        });
+        
+        console.log("✅ Barbeiros finais:", barbeirosComNome);
+        setBarbeiros(barbeirosComNome);
+      } else {
+        console.log("❌ Nenhum barbeiro encontrado");
+        setBarbeiros([]);
+      }
 
       // Buscar serviços ativos
       const { data: servicosData } = await supabase
@@ -98,117 +166,208 @@ const PublicBooking = () => {
 
   useEffect(() => {
     loadData();
+    checkExistingSession();
+    handleOAuthCallback();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
-  const formatPhone = (value: string) => {
-    const numbers = value.replace(/\D/g, "");
-    if (numbers.length <= 2) return `(${numbers}`;
-    if (numbers.length <= 6) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
-    if (numbers.length <= 10) return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 6)}-${numbers.slice(6)}`;
-    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
-  };
 
-  // Tela inicial: login por telefone
-  const handlePhoneSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setPhoneLoading(true);
-    setWelcomeName(null);
+  // Processar callback do OAuth (Google)
+  const handleOAuthCallback = async () => {
     try {
-      const raw = telefone.replace(/\D/g, "");
-      if (raw.length < 10) {
-        toast.error("Por favor, insira um telefone válido");
-        setPhoneLoading(false);
-        return;
-      }
-      setRawTelefone(raw);
-      // Busca cliente pelo telefone
-      const { data: existingProfile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("telefone", telefone)
-        .eq("tipo", "cliente")
-        .maybeSingle();
-      if (existingProfile) {
-        setProfile(existingProfile);
-        setClienteName(existingProfile.nome);
-        setShowNameInput(false);
-        setWelcomeName(existingProfile.nome);
-        toast.success(`Bem-vindo de volta, ${existingProfile.nome}!`);
-        // Não avança de step automaticamente, só libera botão para avançar
-      } else {
-        setShowNameInput(true);
-        setWelcomeName(null);
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const accessToken = hashParams.get('access_token');
+      
+      if (accessToken) {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error("Erro ao obter sessão OAuth:", error);
+          return;
+        }
+        
+        if (session?.user) {
+          setUser(session.user);
+          const { data: profileData } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", session.user.id)
+            .single();
+          
+          if (profileData) {
+            setProfile(profileData);
+            setStep(1);
+            toast.success(`Bem-vindo, ${profileData.nome || session.user.email}!`);
+          }
+        }
+        // Limpar hash da URL
+        window.history.replaceState(null, '', window.location.pathname);
       }
     } catch (error) {
-      toast.error("Erro ao processar telefone");
-      console.error(error);
-    } finally {
-      setPhoneLoading(false);
+      console.error("Erro ao processar callback OAuth:", error);
     }
   };
 
-  // Cadastro rápido do cliente caso não exista
-  const handleQuickRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setPhoneLoading(true);
+  // Verificar se já existe sessão ativa
+  const checkExistingSession = async () => {
     try {
-      const nome = clienteName.trim();
-      if (nome.length < 3) {
-        toast.error("Nome muito curto");
-        setPhoneLoading(false);
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.error("Erro ao verificar sessão:", error);
         return;
       }
-      const raw = telefone.replace(/\D/g, "");
-      // Impede duplicidade de telefone
-      const { data: existingProfile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("telefone", telefone)
-        .eq("tipo", "cliente")
-        .maybeSingle();
-      if (existingProfile) {
-        toast.error("Telefone já cadastrado. Faça login.");
-        setShowNameInput(false);
-        setWelcomeName(existingProfile.nome);
-        setClienteName(existingProfile.nome);
-        setProfile(existingProfile);
-        setPhoneLoading(false);
-        return;
+      
+      if (session?.user) {
+        setUser(session.user);
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", session.user.id)
+          .single();
+        
+        if (profileData) {
+          setProfile(profileData);
+          setStep(1); // Já está autenticado, vai direto para seleção de serviço
+        }
       }
-      // Cadastro via Edge Function (public-booking)
-      const emailFromPhone = `${raw}@cliente.app`;
-      // Detecta ambiente local e ajusta a URL da função
-      const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.hostname.startsWith("192.168.");
-      const fnUrl = isLocal
-        ? "http://localhost:54321/functions/v1/public-booking"
-        : "/functions/v1/public-booking";
-      const response = await fetch(fnUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "register-client",
-          nome,
-          telefone,
-          email: emailFromPhone,
-        }),
-      });
-      const result = await response.json();
-      if (!response.ok || !result || result.error) {
-        toast.error(result?.error || "Erro ao criar cadastro");
-        setPhoneLoading(false);
-        return;
-      }
-      setProfile(result.data);
-      setClienteName(result.data.nome);
-      setWelcomeName(result.data.nome);
-      toast.success("Cadastro criado com sucesso!");
-      setShowNameInput(false);
-      setStep(1);
     } catch (error) {
-      toast.error("Erro ao criar cadastro");
+      console.error("Erro ao verificar sessão:", error);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setAuthLoading(true);
+    try {
+      const currentUrl = window.location.origin + window.location.pathname;
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: currentUrl,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'select_account',
+          },
+        },
+      });
+
+      if (error) {
+        toast.error("Erro ao fazer login com Google: " + error.message);
+        console.error("Erro OAuth:", error);
+        setAuthLoading(false);
+      }
+      // Se sucesso, será redirecionado automaticamente
+    } catch (error) {
+      toast.error("Erro ao processar login com Google");
+      console.error("Erro crítico OAuth:", error);
+      setAuthLoading(false);
+    }
+  };
+
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthLoading(true);
+
+    try {
+      // Validações básicas
+      if (!authData.email || !authData.password) {
+        toast.error("Preencha todos os campos");
+        setAuthLoading(false);
+        return;
+      }
+
+      if (authData.password.length < 6) {
+        toast.error("A senha deve ter no mínimo 6 caracteres");
+        setAuthLoading(false);
+        return;
+      }
+
+      if (!isLogin && (!authData.nome || authData.nome.trim().length < 3)) {
+        toast.error("Por favor, informe seu nome completo (mínimo 3 caracteres)");
+        setAuthLoading(false);
+        return;
+      }
+
+      if (isLogin) {
+        // Login
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: authData.email,
+          password: authData.password,
+        });
+
+        if (error) {
+          if (error.message.includes("Invalid login credentials")) {
+            toast.error("Email ou senha incorretos");
+          } else if (error.message.includes("Email not confirmed")) {
+            toast.error("Confirme seu email antes de fazer login");
+          } else {
+            toast.error("Erro ao fazer login");
+          }
+          console.error(error);
+          setAuthLoading(false);
+          return;
+        }
+
+        if (data.user) {
+          const { data: profileData } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", data.user.id)
+            .single();
+          
+          setProfile(profileData);
+          setUser(data.user);
+          toast.success(`Bem-vindo de volta${profileData?.nome ? ', ' + profileData.nome : ''}!`);
+          setStep(1);
+        }
+      } else {
+        // Cadastro
+        const { data, error } = await supabase.auth.signUp({
+          email: authData.email,
+          password: authData.password,
+          options: {
+            data: {
+              nome: authData.nome.trim(),
+              tipo: "cliente",
+            },
+          },
+        });
+
+        if (error) {
+          if (error.message.includes("already registered")) {
+            toast.error("Este email já está cadastrado. Faça login.");
+            setIsLogin(true);
+          } else if (error.message.includes("Invalid email")) {
+            toast.error("Email inválido");
+          } else {
+            toast.error("Erro ao criar conta: " + error.message);
+          }
+          console.error(error);
+          setAuthLoading(false);
+          return;
+        }
+
+        if (data.user) {
+          setUser(data.user);
+          
+          // Aguardar criação do perfil (trigger automático)
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          const { data: profileData } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", data.user.id)
+            .single();
+          
+          setProfile(profileData);
+          toast.success("Conta criada com sucesso!");
+          setStep(1);
+        }
+      }
+    } catch (error) {
+      toast.error("Erro ao processar autenticação");
       console.error(error);
     } finally {
-      setPhoneLoading(false);
+      setAuthLoading(false);
     }
   };
 
@@ -288,9 +447,21 @@ const PublicBooking = () => {
 
   const handleBooking = async () => {
     try {
+      // Validações
+      if (!profile || !user) {
+        toast.error("Você precisa estar logado para agendar");
+        setStep(0);
+        return;
+      }
+
+      if (!selectedServico || !selectedBarbeiro || !selectedDate || !selectedTime) {
+        toast.error("Preencha todos os campos obrigatórios");
+        return;
+      }
+
       const validation = bookingSchema.safeParse({ observacoes });
       if (!validation.success) { 
-        toast.error("Observações muito longas"); 
+        toast.error("Observações muito longas (máximo 500 caracteres)"); 
         return; 
       }
       
@@ -302,42 +473,70 @@ const PublicBooking = () => {
         servicoId: selectedServico, 
         date: selectedDate, 
         time: selectedTime, 
-        nome: clienteName, 
-        email: `${telefone.replace(/\D/g, "")}@cliente.app`, 
-        telefone, 
+        nome: profile?.nome || user?.user_metadata?.nome || "Cliente", 
+        email: user?.email || profile?.email || "", 
+        telefone: profile?.telefone || "", 
         observacoes: observacoes || null 
       };
+
+      console.log("📤 Enviando agendamento:", payload);
       
-      const { data, error } = await supabase.functions.invoke("public-booking", { body: payload });
-      
-      if (error || data?.error) { 
-        toast.error(data?.error || "Erro ao criar agendamento"); 
-        return; 
-      }
-      
-      // Agendar lembrete de notificação
-      const barbeiroInfo = barbeiros.find(b => b.id === selectedBarbeiro);
-      if (data?.agendamentoId) {
-        scheduleAppointmentReminder(
-          data.agendamentoId,
-          selectedDate,
-          selectedTime,
-          barbearia.nome,
-          barbeiroInfo?.nome || publicTerminology.professional
-        );
+      try {
+        const { data, error } = await supabase.functions.invoke("public-booking", { body: payload });
         
-        // Mostra notificação imediata de confirmação
-        showNotification(`${publicTerminology.appointment} Confirmado! 🎉`, {
-          body: `Seu horário está marcado para ${format(new Date(selectedDate), "dd/MM/yyyy")} às ${selectedTime}`,
-          tag: `booking-confirmed-${data.agendamentoId}`,
-        });
-      }
+        console.log("📥 Resposta da função:", { data, error });
+        
+        if (error) {
+          // Erro de rede ou invocação
+          const errorMsg = error.message || "Erro ao criar agendamento";
+          toast.error(errorMsg); 
+          console.error("❌ Erro na invocação:", error);
+          return; 
+        }
+
+        if (data?.error) { 
+          // Erro retornado pela função
+          toast.error(data.error); 
+          console.error("❌ Erro retornado pela função:", data.error);
+          return; 
+        }
+        
+        if (!data?.ok && !data?.agendamentoId) {
+          // Resposta inesperada
+          toast.error("Resposta inesperada do servidor");
+          console.error("❌ Resposta inválida:", data);
+          return;
+        }
       
-      toast.success(`${publicTerminology.appointment} realizado com sucesso!`);
-      setBookingSuccess(true);
+        // Agendar lembrete de notificação
+        const barbeiroInfo = barbeiros.find(b => b.id === selectedBarbeiro);
+        if (data?.agendamentoId) {
+          scheduleAppointmentReminder(
+            data.agendamentoId,
+            selectedDate,
+            selectedTime,
+            barbearia.nome,
+            barbeiroInfo?.nome || publicTerminology.professional
+          );
+          
+          // Mostra notificação imediata de confirmação
+          showNotification(`${publicTerminology.appointment} Confirmado! 🎉`, {
+            body: `Seu horário está marcado para ${format(new Date(selectedDate), "dd/MM/yyyy")} às ${selectedTime}`,
+            tag: `booking-confirmed-${data.agendamentoId}`,
+          });
+        }
+        
+        toast.success(`${publicTerminology.appointment} realizado com sucesso!`);
+        setBookingSuccess(true);
+      } catch (invokeError) {
+        // Erro de rede/timeout
+        console.error("❌ Erro de invocação:", invokeError);
+        toast.error("Erro de conexão. Verifique sua internet.");
+        return;
+      }
     } catch (error) { 
       toast.error("Erro ao processar agendamento"); 
-      console.error(error);
+      console.error("Erro crítico:", error);
     } finally { 
       setSubmitting(false); 
     }
@@ -393,7 +592,7 @@ const PublicBooking = () => {
         <p className="text-muted-foreground text-center max-w-md">
           Seu {publicTerminology.appointment.toLowerCase()} foi realizado com sucesso. Em breve você receberá a confirmação.
         </p>
-        <Button onClick={() => window.location.href = `/booking/${slug}`}>
+        <Button onClick={() => window.location.reload()}>
           {`Fazer novo ${publicTerminology.appointment.toLowerCase()}`}
         </Button>
       </div>
@@ -408,10 +607,31 @@ const PublicBooking = () => {
           <Button 
             variant="ghost" 
             size="icon"
-            onClick={() => step === 0 ? navigate("/?public=true") : setStep(step - 1)}
+            onClick={() => step === 0 ? navigate("/") : setStep(step - 1)}
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
+          
+          {user && step > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground hidden sm:inline">
+                {profile?.nome || user.email}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  setUser(null);
+                  setProfile(null);
+                  setStep(0);
+                  toast.success("Logout realizado");
+                }}
+              >
+                Sair
+              </Button>
+            </div>
+          )}
         </div>
 
         {barbearia && (
@@ -444,178 +664,137 @@ const PublicBooking = () => {
         <Card className="max-w-md mx-auto">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Phone className="h-5 w-5" />
-              Identificação do Cliente
+              <User className="h-5 w-5" />
+              {isLogin ? "Entrar na Conta" : "Criar Conta"}
             </CardTitle>
             <CardDescription>
-              Digite seu telefone para continuar
+              {isLogin 
+                ? "Acesse sua conta para agendar" 
+                : "Cadastre-se para começar a agendar"}
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            {/* Se ainda não buscou ou não encontrou, mostra input de telefone */}
-            {!welcomeName && !showNameInput && (
-              <form onSubmit={handlePhoneSubmit} className="space-y-4">
-                <div>
-                  <Label htmlFor="telefone">Telefone</Label>
-                  <Input
-                    id="telefone"
-                    type="tel"
-                    placeholder="(11) 98765-4321"
-                    value={telefone}
-                    onChange={(e) => setTelefone(formatPhone(e.target.value))}
-                    maxLength={16}
-                    required
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={phoneLoading || telefone.replace(/\D/g, "").length < 10}
-                >
-                  {phoneLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Verificando...
-                    </>
-                  ) : (
-                    "Entrar"
-                  )}
-                </Button>
-              </form>
-            )}
-            {/* Se encontrou cliente, só mostra mensagem e botão continuar */}
-            {welcomeName && !showNameInput && (
-              <div className="mt-4 text-center">
-                <div className="text-green-600 font-semibold mb-2">
-                  Bem-vindo de volta, {welcomeName}!
-                </div>
-                <Button className="w-full" onClick={() => setStep(1)}>
-                  Continuar
-                </Button>
-              </div>
-            )}
-            {/* Se não encontrou, pede cadastro */}
-            {showNameInput && !welcomeName && (
-              <form onSubmit={handleQuickRegister} className="space-y-4 mt-4">
-                <div>
-                  <Label htmlFor="telefone-readonly">Telefone</Label>
-                  <Input
-                    id="telefone-readonly"
-                    type="tel"
-                    value={telefone}
-                    disabled
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="nome">Nome Completo</Label>
-                  <Input
-                    id="nome"
-                    type="text"
-                    placeholder="Seu nome completo"
-                    value={clienteName}
-                    onChange={(e) => setClienteName(e.target.value)}
-                    required
-                    minLength={3}
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setShowNameInput(false);
-                      setClienteName("");
-                      setProfile(null);
-                    }}
-                    className="flex-1"
-                  >
-                    Voltar
-                  </Button>
-                  <Button
-                    type="submit"
-                    className="flex-1"
-                    disabled={phoneLoading || clienteName.trim().length < 3}
-                  >
-                    {phoneLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Criando...
-                      </>
-                    ) : (
-                      "Criar Conta"
-                    )}
-                  </Button>
-                </div>
-              </form>
-            )}
-          </CardContent>
-        </Card>
-      )}
+          <CardContent className="space-y-4">
+            {/* Google Login */}
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full h-12 text-base font-semibold"
+              onClick={handleGoogleLogin}
+              disabled={authLoading}
+            >
+              <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24">
+                <path
+                  fill="currentColor"
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                />
+                <path
+                  fill="currentColor"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                />
+                <path
+                  fill="currentColor"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                />
+                <path
+                  fill="currentColor"
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                />
+              </svg>
+              Continuar com Google
+            </Button>
 
-      {/* TELA DE CADASTRO SE NÃO EXISTE */}
-      {step === 0 && showNameInput && !profile && (
-        <Card className="max-w-md mx-auto">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Phone className="h-5 w-5" />
-              Cadastro do Cliente
-            </CardTitle>
-            <CardDescription>
-              Preencha seus dados para criar sua conta
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleQuickRegister} className="space-y-4">
-              <div>
-                <Label htmlFor="telefone-readonly">Telefone</Label>
-                <Input
-                  id="telefone-readonly"
-                  type="tel"
-                  value={telefone}
-                  disabled
-                />
+            <div className="relative">
+              <Separator />
+              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-xs text-muted-foreground">
+                ou
+              </span>
+            </div>
+
+            {/* Email/Password Form */}
+            <form onSubmit={handleEmailAuth} className="space-y-4">
+              {!isLogin && (
+                <div className="space-y-2">
+                  <Label htmlFor="nome">Nome Completo</Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="nome"
+                      type="text"
+                      placeholder="Seu nome"
+                      value={authData.nome}
+                      onChange={(e) => setAuthData(prev => ({ ...prev, nome: e.target.value }))}
+                      className="pl-10"
+                      required={!isLogin}
+                      disabled={authLoading}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="seu@email.com"
+                    value={authData.email}
+                    onChange={(e) => setAuthData(prev => ({ ...prev, email: e.target.value }))}
+                    className="pl-10"
+                    required
+                    disabled={authLoading}
+                  />
+                </div>
               </div>
-              <div>
-                <Label htmlFor="nome">Nome Completo</Label>
-                <Input
-                  id="nome"
-                  type="text"
-                  placeholder="Seu nome completo"
-                  value={clienteName}
-                  onChange={(e) => setClienteName(e.target.value)}
-                  required
-                  minLength={3}
-                />
+
+              <div className="space-y-2">
+                <Label htmlFor="password">Senha</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Mínimo 6 caracteres"
+                    value={authData.password}
+                    onChange={(e) => setAuthData(prev => ({ ...prev, password: e.target.value }))}
+                    className="pl-10"
+                    required
+                    disabled={authLoading}
+                    minLength={6}
+                  />
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setShowNameInput(false);
-                    setClienteName("");
-                    setProfile(null);
-                  }}
-                  className="flex-1"
-                >
-                  Voltar
-                </Button>
-                <Button
-                  type="submit"
-                  className="flex-1"
-                  disabled={phoneLoading || clienteName.trim().length < 3}
-                >
-                  {phoneLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Criando...
-                    </>
-                  ) : (
-                    "Criar Conta"
-                  )}
-                </Button>
-              </div>
+
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={authLoading}
+              >
+                {authLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {isLogin ? "Entrando..." : "Criando conta..."}
+                  </>
+                ) : (
+                  <>{isLogin ? "Entrar" : "Criar Conta"}</>
+                )}
+              </Button>
             </form>
+
+            <div className="text-center">
+              <Button
+                type="button"
+                variant="link"
+                onClick={() => setIsLogin(!isLogin)}
+                className="text-sm"
+                disabled={authLoading}
+              >
+                {isLogin 
+                  ? "Não tem conta? Cadastre-se" 
+                  : "Já tem conta? Faça login"}
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -627,7 +806,12 @@ const PublicBooking = () => {
             <CardDescription>{publicTerminology.selectService}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
-            {servicos.map((servico) => (
+            {servicos.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">Nenhum serviço disponível no momento</p>
+              </div>
+            ) : (
+              servicos.map((servico) => (
               <button
                 key={servico.id}
                 onClick={() => setSelectedServico(servico.id)}
@@ -657,7 +841,8 @@ const PublicBooking = () => {
                   </span>
                 </div>
               </button>
-            ))}
+              ))
+            )}
           </CardContent>
         </Card>
       )}
@@ -669,7 +854,12 @@ const PublicBooking = () => {
             <CardDescription>{publicTerminology.selectProfessional}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
-            {barbeiros.map((barbeiro) => (
+            {barbeiros.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">Nenhum profissional disponível no momento</p>
+              </div>
+            ) : (
+              barbeiros.map((barbeiro) => (
               <button
                 key={barbeiro.id}
                 onClick={() => setSelectedBarbeiro(barbeiro.id)}
@@ -705,7 +895,8 @@ const PublicBooking = () => {
                   </div>
                 </div>
               </button>
-            ))}
+              ))
+            )}
           </CardContent>
         </Card>
       )}
@@ -790,8 +981,8 @@ const PublicBooking = () => {
                 <User className="h-5 w-5 text-muted-foreground" />
                 <div>
                   <p className="text-sm text-muted-foreground">{publicTerminology.client}</p>
-                  <p className="font-medium">{clienteName}</p>
-                  <p className="text-sm text-muted-foreground">{telefone}</p>
+                  <p className="font-medium">{profile?.nome || user?.user_metadata?.nome || "Cliente"}</p>
+                  <p className="text-sm text-muted-foreground">{user?.email}</p>
                 </div>
               </div>
 

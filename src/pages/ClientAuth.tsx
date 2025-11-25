@@ -3,33 +3,27 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Calendar, Phone, User, Loader2, ArrowLeft } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { Calendar, Mail, Lock, User, Loader2, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate, useLocation, Location } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { z } from "zod";
 
 // Schema de validação
-const phoneAuthSchema = z.object({
-  nome: z.string()
-    .trim()
-    .min(3, "Nome deve ter pelo menos 3 caracteres")
-    .max(100, "Nome muito longo"),
-  telefone: z.string()
-    .trim()
-    .regex(/^\(\d{2}\)\s\d{4,5}-\d{4}$/, "Formato inválido. Use: (11) 98765-4321")
-    .min(14, "Telefone inválido")
-    .max(16, "Telefone inválido"),
+const emailAuthSchema = z.object({
+  email: z.string().email("Email inválido"),
+  password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
+  nome: z.string().min(3, "Nome deve ter pelo menos 3 caracteres").optional(),
 });
 
 const ClientAuth = () => {
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState<"phone" | "profile">("phone");
-  const [telefone, setTelefone] = useState("");
-  const [clientData, setClientData] = useState({
+  const [isLogin, setIsLogin] = useState(true); // true = login, false = cadastro
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
     nome: "",
-    foto_url: "",
   });
   const navigate = useNavigate();
   const location = useLocation();
@@ -39,171 +33,115 @@ const ClientAuth = () => {
   const state = location.state as LocationState | null;
   const redirectPath = state?.from || '/';
 
-  const formatPhone = (value: string) => {
-    const numbers = value.replace(/\D/g, "");
-    if (numbers.length <= 2) return `(${numbers}`;
-    if (numbers.length <= 6) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
-    if (numbers.length <= 10) 
-      return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 6)}-${numbers.slice(6)}`;
-    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
-  };
-
-  const handlePhoneSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleGoogleLogin = async () => {
     setLoading(true);
-
     try {
-      // Validar telefone
-      const validation = z.string().trim().min(14).safeParse(telefone);
-      if (!validation.success) {
-        toast.error("Por favor, insira um telefone válido");
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}${redirectPath}`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'select_account',
+          },
+        },
+      });
+
+      if (error) {
+        toast.error("Erro ao fazer login com Google: " + error.message);
+        console.error("Erro OAuth:", error);
         setLoading(false);
-        return;
       }
-
-      // Verificar se já existe usuário com este telefone
-      const { data: existingProfile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("telefone", telefone)
-        .eq("tipo", "cliente")
-        .maybeSingle();
-
-      if (existingProfile) {
-        // Cliente já existe - fazer login automático
-        const emailFromPhone = `${telefone.replace(/\D/g, "")}@cliente.app`;
-        
-        try {
-          // Tentar fazer login
-          const { error: signInError } = await supabase.auth.signInWithPassword({
-            email: emailFromPhone,
-            password: telefone.replace(/\D/g, ""),
-          });
-
-          if (signInError) {
-            toast.error("Erro ao fazer login. Tente novamente.");
-            console.error(signInError);
-            setLoading(false);
-            return;
-          }
-
-          toast.success(`Bem-vindo de volta, ${existingProfile.nome}!`);
-          navigate(redirectPath, { replace: true });
-        } catch (error: unknown) {
-          toast.error("Erro ao fazer login");
-          console.error(error);
-        }
-      } else {
-        // Novo cliente - solicitar informações adicionais
-        setStep("profile");
-      }
-    } catch (error: unknown) {
-      toast.error("Erro ao processar telefone");
-      console.error(error);
-    } finally {
+      // Se sucesso, será redirecionado automaticamente
+    } catch (error) {
+      toast.error("Erro ao processar login com Google");
+      console.error("Erro crítico OAuth:", error);
       setLoading(false);
     }
   };
 
-  const handleProfileSubmit = async (e: React.FormEvent) => {
+  const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // Validar dados
-      const validation = phoneAuthSchema.safeParse({
-        nome: clientData.nome,
-        telefone: telefone,
-      });
-
+      const validation = emailAuthSchema.safeParse(formData);
       if (!validation.success) {
         toast.error(validation.error.errors[0].message);
         setLoading(false);
         return;
       }
 
-      // Criar usuário
-      const emailFromPhone = `${telefone.replace(/\D/g, "")}@cliente.app`;
-      const passwordFromPhone = telefone.replace(/\D/g, "");
+      if (isLogin) {
+        // Login
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password,
+        });
 
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({
-        email: emailFromPhone,
-        password: passwordFromPhone,
-        options: {
-          data: {
-            nome: clientData.nome,
-            tipo: "cliente",
-            telefone: telefone,
-          },
-        },
-      });
-
-      if (signUpError) {
-        // Se o usuário já existe mas não conseguiu logar antes, tentar login
-        if (signUpError.message.includes("already registered")) {
-          const { error: signInError } = await supabase.auth.signInWithPassword({
-            email: emailFromPhone,
-            password: passwordFromPhone,
-          });
-
-          if (signInError) {
+        if (error) {
+          if (error.message.includes("Invalid login credentials")) {
+            toast.error("Email ou senha incorretos");
+          } else {
             toast.error("Erro ao fazer login");
-            setLoading(false);
-            return;
           }
-        } else {
-          throw signUpError;
+          console.error(error);
+          setLoading(false);
+          return;
+        }
+
+        if (data.user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("nome")
+            .eq("id", data.user.id)
+            .single();
+          
+          toast.success(`Bem-vindo de volta${profile?.nome ? ', ' + profile.nome : ''}!`);
+          navigate(redirectPath, { replace: true });
+        }
+      } else {
+        // Cadastro
+        if (!formData.nome || formData.nome.length < 3) {
+          toast.error("Por favor, informe seu nome completo");
+          setLoading(false);
+          return;
+        }
+
+        const { data, error } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: {
+            data: {
+              nome: formData.nome,
+              tipo: "cliente",
+            },
+          },
+        });
+
+        if (error) {
+          if (error.message.includes("already registered")) {
+            toast.error("Este email já está cadastrado. Faça login.");
+            setIsLogin(true);
+          } else {
+            toast.error("Erro ao criar conta");
+          }
+          console.error(error);
+          setLoading(false);
+          return;
+        }
+
+        if (data.user) {
+          toast.success("Conta criada com sucesso!");
+          navigate(redirectPath, { replace: true });
         }
       }
-
-      // Atualizar perfil com telefone e foto
-      if (authData?.user) {
-        const { error: updateError } = await supabase
-          .from("profiles")
-          .update({
-            telefone: telefone,
-            avatar_url: clientData.foto_url || null,
-          })
-          .eq("id", authData.user.id);
-
-        if (updateError) {
-          console.error("Erro ao atualizar perfil:", updateError);
-        }
-      }
-
-      toast.success("Conta criada com sucesso!");
-      
-      // Esperar um pouco para garantir que a sessão seja estabelecida
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      navigate(redirectPath, { replace: true });
-    } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Erro ao criar conta");
+    } catch (error) {
+      toast.error("Erro ao processar autenticação");
       console.error(error);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      toast.error("Por favor, selecione apenas imagens");
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("A imagem deve ter no máximo 5MB");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setClientData((prev) => ({ ...prev, foto_url: reader.result as string }));
-    };
-    reader.readAsDataURL(file);
   };
 
   return (
@@ -218,153 +156,145 @@ const ClientAuth = () => {
         </div>
 
         <Card className="shadow-2xl border-0">
-          {step === "phone" ? (
-            <>
-              <CardHeader className="text-center pb-4">
-                <CardTitle className="text-2xl">Entrar com Telefone</CardTitle>
-                <CardDescription>Digite seu telefone para continuar</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handlePhoneSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="telefone" className="text-base">
-                      Telefone
-                    </Label>
-                    <div className="relative">
-                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                      <Input
-                        id="telefone"
-                        type="tel"
-                        placeholder="(11) 98765-4321"
-                        value={telefone}
-                        onChange={(e) => setTelefone(formatPhone(e.target.value))}
-                        className="pl-10 h-12 text-base"
-                        maxLength={16}
-                        required
-                        disabled={loading}
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Usaremos seu telefone para identificação rápida
-                    </p>
-                  </div>
+          <CardHeader className="text-center pb-4">
+            <CardTitle className="text-2xl">
+              {isLogin ? "Entrar na Conta" : "Criar Conta"}
+            </CardTitle>
+            <CardDescription>
+              {isLogin 
+                ? "Acesse sua conta para agendar" 
+                : "Cadastre-se para começar a agendar"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Google Login */}
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full h-12 text-base font-semibold"
+              onClick={handleGoogleLogin}
+              disabled={loading}
+            >
+              <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24">
+                <path
+                  fill="currentColor"
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                />
+                <path
+                  fill="currentColor"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                />
+                <path
+                  fill="currentColor"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                />
+                <path
+                  fill="currentColor"
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                />
+              </svg>
+              Continuar com Google
+            </Button>
 
-                  <Button
-                    type="submit"
-                    className="w-full h-12 text-base font-semibold gradient-primary"
-                    disabled={loading || telefone.length < 14}
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                        Verificando...
-                      </>
-                    ) : (
-                      <>
-                        Continuar
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </CardContent>
-            </>
-          ) : (
-            <>
-              <CardHeader className="text-center pb-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setStep("phone")}
-                  className="absolute left-4 top-4"
-                >
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Voltar
-                </Button>
-                <CardTitle className="text-2xl">Complete seu Perfil</CardTitle>
-                <CardDescription>Algumas informações sobre você</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleProfileSubmit} className="space-y-6">
-                  {/* Upload de Foto */}
-                  <div className="flex flex-col items-center gap-4">
-                    <Avatar className="h-24 w-24 border-4 border-primary/20">
-                      {clientData.foto_url ? (
-                        <AvatarImage src={clientData.foto_url} alt="Foto" />
-                      ) : (
-                        <AvatarFallback className="bg-primary/10">
-                          <User className="h-12 w-12 text-primary" />
-                        </AvatarFallback>
-                      )}
-                    </Avatar>
-                    <div>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleFileSelect}
-                        className="hidden"
-                        id="foto-input"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => document.getElementById("foto-input")?.click()}
-                      >
-                        Adicionar Foto (Opcional)
-                      </Button>
-                    </div>
-                  </div>
+            <div className="relative">
+              <Separator />
+              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-xs text-muted-foreground">
+                ou
+              </span>
+            </div>
 
-                  {/* Nome */}
-                  <div className="space-y-2">
-                    <Label htmlFor="nome" className="text-base">
-                      Nome Completo *
-                    </Label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                      <Input
-                        id="nome"
-                        type="text"
-                        placeholder="Seu nome"
-                        value={clientData.nome}
-                        onChange={(e) =>
-                          setClientData((prev) => ({ ...prev, nome: e.target.value }))
-                        }
-                        className="pl-10 h-12 text-base"
-                        required
-                        maxLength={100}
-                        disabled={loading}
-                      />
-                    </div>
+            {/* Email/Password Form */}
+            <form onSubmit={handleEmailAuth} className="space-y-4">
+              {!isLogin && (
+                <div className="space-y-2">
+                  <Label htmlFor="nome" className="text-base">
+                    Nome Completo
+                  </Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                    <Input
+                      id="nome"
+                      type="text"
+                      placeholder="Seu nome"
+                      value={formData.nome}
+                      onChange={(e) => setFormData(prev => ({ ...prev, nome: e.target.value }))}
+                      className="pl-10 h-12 text-base"
+                      required={!isLogin}
+                      disabled={loading}
+                    />
                   </div>
+                </div>
+              )}
 
-                  <div className="bg-muted/50 p-4 rounded-lg">
-                    <p className="text-sm text-muted-foreground">
-                      <Phone className="inline h-4 w-4 mr-1" />
-                      Telefone: <span className="font-medium text-foreground">{telefone}</span>
-                    </p>
-                  </div>
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-base">
+                  Email
+                </Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="seu@email.com"
+                    value={formData.email}
+                    onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                    className="pl-10 h-12 text-base"
+                    required
+                    disabled={loading}
+                  />
+                </div>
+              </div>
 
-                  <Button
-                    type="submit"
-                    className="w-full h-12 text-base font-semibold gradient-primary"
-                    disabled={loading || !clientData.nome.trim()}
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                        Criando conta...
-                      </>
-                    ) : (
-                      <>
-                        Finalizar Cadastro
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </CardContent>
-            </>
-          )}
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-base">
+                  Senha
+                </Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Mínimo 6 caracteres"
+                    value={formData.password}
+                    onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                    className="pl-10 h-12 text-base"
+                    required
+                    disabled={loading}
+                    minLength={6}
+                  />
+                </div>
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full h-12 text-base font-semibold gradient-primary"
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    {isLogin ? "Entrando..." : "Criando conta..."}
+                  </>
+                ) : (
+                  <>{isLogin ? "Entrar" : "Criar Conta"}</>
+                )}
+              </Button>
+            </form>
+
+            <div className="text-center">
+              <Button
+                type="button"
+                variant="link"
+                onClick={() => setIsLogin(!isLogin)}
+                className="text-sm"
+                disabled={loading}
+              >
+                {isLogin 
+                  ? "Não tem conta? Cadastre-se" 
+                  : "Já tem conta? Faça login"}
+              </Button>
+            </div>
+          </CardContent>
         </Card>
 
         <p className="text-center text-sm text-muted-foreground mt-6">

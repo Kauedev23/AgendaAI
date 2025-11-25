@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Users, TrendingUp, LogOut, CreditCard, AlertCircle, Clock, Home, BarChart3 } from "lucide-react";
+import { Calendar, Users, TrendingUp, LogOut, CreditCard, AlertCircle, Clock, Home, BarChart3, ExternalLink, Share2, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { useTerminology } from "@/context/BusinessTerminologyProvider";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
@@ -141,8 +141,34 @@ const Dashboard = () => {
       await supabase.auth.signOut();
       toast.success("Logout realizado com sucesso!");
       navigate("/");
-    } catch (error: any) {
+    } catch (error) {
       toast.error("Erro ao fazer logout");
+    }
+  };
+
+  const handleCopyLink = () => {
+    const bookingLink = `${window.location.origin}/${barbearia?.slug || ''}`;
+    navigator.clipboard.writeText(bookingLink);
+    toast.success("Link copiado para a área de transferência!");
+  };
+
+  const handleShareLink = async () => {
+    const bookingLink = `${window.location.origin}/${barbearia?.slug || ''}`;
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `${barbearia?.nome || 'AgendaAI'} - Agendamento Online`,
+          text: `Agende seu horário online!`,
+          url: bookingLink,
+        });
+      } catch (error) {
+        if ((error as Error).name !== 'AbortError') {
+          handleCopyLink();
+        }
+      }
+    } else {
+      handleCopyLink();
     }
   };
 
@@ -166,7 +192,7 @@ const Dashboard = () => {
       {/* Header */}
       <header className="border-b bg-white p-4">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <Calendar className="h-8 w-8 text-cyan-500" />
                 <div>
@@ -186,6 +212,38 @@ const Dashboard = () => {
               )}
             </div>
             <div className="flex items-center gap-4">
+              {/* Link de Agendamento - Discreto no Header */}
+              {barbearia?.slug && (
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => window.open(`/${barbearia.slug}`, '_blank')}
+                    className="h-8"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Abrir
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCopyLink}
+                    className="h-8"
+                  >
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copiar
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleShareLink}
+                    className="h-8"
+                  >
+                    <Share2 className="h-4 w-4 mr-2" />
+                    Compartilhar
+                  </Button>
+                </div>
+              )}
               <div className="text-right">
                 <p className="font-semibold">{profile?.nome}</p>
                 <p className="text-sm text-muted-foreground capitalize">{profile?.tipo}</p>

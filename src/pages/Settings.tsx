@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Save, Upload, Home } from "lucide-react";
+import { ArrowLeft, Save, Upload, Home, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import { useTerminology } from "@/context/BusinessTerminologyProvider";
@@ -248,7 +248,19 @@ const Settings = () => {
             Configurações do {terminology.business}
           </h1>
           
-          <div className="w-24"></div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              await supabase.auth.signOut();
+              toast.success("Logout realizado com sucesso!");
+              navigate("/");
+            }}
+            className="gap-2"
+          >
+            <LogOut className="h-4 w-4" />
+            Sair
+          </Button>
         </header>
 
         <div className="grid gap-6 max-w-4xl">
