@@ -104,7 +104,7 @@ const PublicBooking = () => {
           const profilesToCreate = barbeirossSemProfile.map(b => ({
             id: b.user_id,
             nome: "Profissional", // Nome padrão
-            tipo: "barbeiro",
+            tipo: "barbeiro" as const,
             email: "",
             telefone: "",
             barbearia_id: b.barbearia_id
@@ -467,72 +467,108 @@ const PublicBooking = () => {
       
       setSubmitting(true);
       
-      const payload = { 
-        barbeariaId: barbearia.id, 
-        barbeiroId: selectedBarbeiro, 
-        servicoId: selectedServico, 
-        date: selectedDate, 
-        time: selectedTime, 
-        nome: profile?.nome || user?.user_metadata?.nome || "Cliente", 
-        email: user?.email || profile?.email || "", 
-        telefone: profile?.telefone || "", 
-        observacoes: observacoes || null 
-      };
-
-      console.log("📤 Enviando agendamento:", payload);
+      console.log("🔍 Verificando profile do usuário:", user.id);
       
-      try {
-        const { data, error } = await supabase.functions.invoke("public-booking", { body: payload });
-        
-        console.log("📥 Resposta da função:", { data, error });
-        
-        if (error) {
-          // Erro de rede ou invocação
-          const errorMsg = error.message || "Erro ao criar agendamento";
-          toast.error(errorMsg); 
-          console.error("❌ Erro na invocação:", error);
-          return; 
-        }
+      // Garantir que o profile existe antes de criar o agendamento
+      const { data: existingProfile, error: profileCheckError } = await supabase
+        .from("profiles")
+        .select("id, nome, email")
+        .eq("id", user.id)
+        .maybeSingle();
 
-        if (data?.error) { 
-          // Erro retornado pela função
-          toast.error(data.error); 
-          console.error("❌ Erro retornado pela função:", data.error);
-          return; 
-        }
-        
-        if (!data?.ok && !data?.agendamentoId) {
-          // Resposta inesperada
-          toast.error("Resposta inesperada do servidor");
-          console.error("❌ Resposta inválida:", data);
+      console.log("👤 Profile existente:", existingProfile);
+      console.log("❌ Erro ao buscar profile:", profileCheckError);
+
+      if (!existingProfile && !profileCheckError) {
+        console.log("⚠️ Profile não existe, criando...");
+        // Criar profile se não existir
+        const { data: newProfile, error: profileError } = await supabase
+          .from("profiles")
+          .insert({
+            id: user.id,
+            nome: profile?.nome || user.user_metadata?.nome || user.email?.split('@')[0] || "Cliente",
+            email: user.email || "",
+            telefone: profile?.telefone || "",
+            tipo: "cliente" as const,
+          })
+          .select()
+          .single();
+
+        console.log("✅ Profile criado:", newProfile);
+        console.log("❌ Erro ao criar profile:", profileError);
+
+        if (profileError) {
+          console.error("❌ ERRO CRÍTICO ao criar profile:", profileError);
+          toast.error(`Erro ao criar perfil: ${profileError.message}`);
+          setSubmitting(false);
           return;
         }
+      }
       
+      console.log("✅ Profile verificado, criando agendamento...");
+      
+      // Verificar conflito de horário primeiro
+      const { data: conflito } = await supabase
+        .from("agendamentos")
+        .select("id")
+        .eq("barbeiro_id", selectedBarbeiro)
+        .eq("data", selectedDate)
+        .eq("hora", selectedTime)
+        .in("status", ["pendente", "confirmado"])
+        .maybeSingle();
+
+      if (conflito) {
+        toast.error("Este horário já está ocupado. Escolha outro horário.");
+        setSubmitting(false);
+        return;
+      }
+
+      console.log("📤 Criando agendamento direto no banco...");
+      
+      // Criar agendamento diretamente na tabela
+      const { data: agendamentoData, error: agendamentoError } = await supabase
+        .from("agendamentos")
+        .insert({
+          barbearia_id: barbearia.id,
+          barbeiro_id: selectedBarbeiro,
+          servico_id: selectedServico,
+          cliente_id: user.id,
+          data: selectedDate,
+          hora: selectedTime,
+          observacoes: observacoes || null,
+          status: "pendente",
+        })
+        .select("id")
+        .single();
+
+      console.log("📥 Resultado:", { agendamentoData, agendamentoError });
+
+      if (agendamentoError) {
+        console.error("❌ Erro ao criar agendamento:", agendamentoError);
+        toast.error("Erro ao criar agendamento. Tente novamente.");
+        setSubmitting(false);
+        return;
+      }
+
+      if (agendamentoData) {
         // Agendar lembrete de notificação
         const barbeiroInfo = barbeiros.find(b => b.id === selectedBarbeiro);
-        if (data?.agendamentoId) {
-          scheduleAppointmentReminder(
-            data.agendamentoId,
-            selectedDate,
-            selectedTime,
-            barbearia.nome,
-            barbeiroInfo?.nome || publicTerminology.professional
-          );
-          
-          // Mostra notificação imediata de confirmação
-          showNotification(`${publicTerminology.appointment} Confirmado! 🎉`, {
-            body: `Seu horário está marcado para ${format(new Date(selectedDate), "dd/MM/yyyy")} às ${selectedTime}`,
-            tag: `booking-confirmed-${data.agendamentoId}`,
-          });
-        }
+        scheduleAppointmentReminder(
+          agendamentoData.id,
+          selectedDate,
+          selectedTime,
+          barbearia.nome,
+          barbeiroInfo?.nome || publicTerminology.professional
+        );
+        
+        // Mostra notificação imediata de confirmação
+        showNotification(`${publicTerminology.appointment} Confirmado! 🎉`, {
+          body: `Seu horário está marcado para ${format(new Date(selectedDate), "dd/MM/yyyy")} às ${selectedTime}`,
+          tag: `booking-confirmed-${agendamentoData.id}`,
+        });
         
         toast.success(`${publicTerminology.appointment} realizado com sucesso!`);
         setBookingSuccess(true);
-      } catch (invokeError) {
-        // Erro de rede/timeout
-        console.error("❌ Erro de invocação:", invokeError);
-        toast.error("Erro de conexão. Verifique sua internet.");
-        return;
       }
     } catch (error) { 
       toast.error("Erro ao processar agendamento"); 

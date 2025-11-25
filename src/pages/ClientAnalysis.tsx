@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Users, TrendingUp, TrendingDown, Search, Phone, Mail, Calendar } from "lucide-react";
+import { ArrowLeft, Users, TrendingUp, TrendingDown, Search, Phone, Mail, Calendar, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { format, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -27,11 +27,75 @@ const ClientAnalysis = () => {
   const navigate = useNavigate();
   const { terminology } = useTerminology();
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<"frequencia" | "recente" | "nome">("frequencia");
   const [filterStatus, setFilterStatus] = useState<"todos" | "ativo" | "inativo" | "novo">("todos");
   const [clientes, setClientes] = useState<ClientStats[]>([]);
   const [barbearia, setBarbearia] = useState<Tables<"barbearias"> | null>(null);
+
+  const syncMissingProfiles = async () => {
+    try {
+      setSyncing(true);
+      toast.info("Sincronizando profiles faltantes...");
+
+      // Buscar todos os agendamentos
+      const { data: agendamentosData } = await supabase
+        .from("agendamentos")
+        .select("cliente_id")
+        .eq("barbearia_id", barbearia?.id || "");
+
+      if (!agendamentosData || agendamentosData.length === 0) {
+        toast.info("Nenhum agendamento encontrado");
+        setSyncing(false);
+        return;
+      }
+
+      // IDs únicos de clientes
+      const clienteIds = [...new Set(agendamentosData.map(a => a.cliente_id))];
+
+      // Buscar profiles existentes
+      const { data: existingProfiles } = await supabase
+        .from("profiles")
+        .select("id")
+        .in("id", clienteIds);
+
+      const existingIds = new Set(existingProfiles?.map(p => p.id) || []);
+      const missingIds = clienteIds.filter(id => !existingIds.has(id));
+
+      console.log(`📊 Total de clientes: ${clienteIds.length}`);
+      console.log(`✅ Profiles existentes: ${existingIds.size}`);
+      console.log(`❌ Profiles faltantes: ${missingIds.length}`);
+
+      if (missingIds.length === 0) {
+        toast.success("Todos os profiles já existem!");
+        setSyncing(false);
+        return;
+      }
+
+      // Criar profiles faltantes com dados padrão
+      // Usar Edge Function para criar com permissões de service_role
+      toast.info(`Criando ${missingIds.length} profiles...`);
+      
+      const { data, error: functionError } = await supabase.functions.invoke("sync-client-profiles", {
+        body: { clienteIds: missingIds }
+      });
+
+      if (functionError) {
+        console.error("Erro ao invocar função:", functionError);
+        toast.error(`Não foi possível sincronizar automaticamente. Total de clientes sem profile: ${missingIds.length}`);
+      } else {
+        toast.success(`✅ ${data?.created || 0} profiles criados com sucesso!`);
+        // Recarregar dados
+        loadData();
+      }
+    } catch (error) {
+      console.error("Erro ao sincronizar:", error);
+      toast.error("Erro ao sincronizar profiles");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const loadData = useCallback(async () => {
     try {
@@ -67,23 +131,71 @@ const ClientAnalysis = () => {
 
       setBarbearia(barbeariasData);
 
-      // Buscar todos os agendamentos com clientes
-      const { data: agendamentosData } = await supabase
+      // Buscar todos os agendamentos
+      const { data: agendamentosData, error: agendamentosError } = await supabase
         .from("agendamentos")
-        .select(`
-          id,
-          data,
-          cliente_id,
-          profiles:cliente_id (id, nome, email, telefone)
-        `)
+        .select("id, data, cliente_id")
         .eq("barbearia_id", barbeariasData.id);
+
+      console.log("📊 Agendamentos encontrados:", agendamentosData);
+      console.log("❌ Erro ao buscar agendamentos:", agendamentosError);
+
+      if (agendamentosError) {
+        console.error("Erro na query:", agendamentosError);
+        toast.error("Erro ao buscar agendamentos");
+        return;
+      }
+
+      if (!agendamentosData || agendamentosData.length === 0) {
+        console.warn("⚠️ Nenhum agendamento encontrado");
+        setClientes([]);
+        return;
+      }
+
+      // Buscar profiles de todos os clientes
+      const clienteIds = [...new Set(agendamentosData.map(a => a.cliente_id))];
+      const { data: profilesData } = await supabase
+        .from("profiles")
+        .select("id, nome, email, telefone")
+        .in("id", clienteIds);
+
+      console.log("👥 Profiles encontrados:", profilesData);
+
+      // Criar map de profiles para acesso rápido
+      const profilesMap = new Map(profilesData?.map(p => [p.id, p]) || []);
 
       // Processar dados dos clientes
       const clienteMap = new Map<string, ClientStats>();
 
-      agendamentosData?.forEach((apt: any) => {
-        const cliente = apt.profiles;
-        if (!cliente || !cliente.id || !cliente.nome || !cliente.email) return;
+      agendamentosData.forEach((apt) => {
+        const cliente = profilesMap.get(apt.cliente_id);
+        console.log(`👤 Agendamento ${apt.id} -> Cliente:`, cliente);
+        
+        if (!cliente) {
+          console.warn("⚠️ Profile não encontrado para cliente_id:", apt.cliente_id);
+          // Criar entrada mesmo sem profile
+          const existing = clienteMap.get(apt.cliente_id);
+          const dataAgendamento = new Date(apt.data);
+
+          if (existing) {
+            existing.totalAgendamentos++;
+            if (!existing.ultimoAgendamento || dataAgendamento > new Date(existing.ultimoAgendamento)) {
+              existing.ultimoAgendamento = apt.data;
+            }
+          } else {
+            clienteMap.set(apt.cliente_id, {
+              id: apt.cliente_id,
+              nome: "Cliente sem cadastro",
+              email: "sem-email@temporario.com",
+              telefone: null,
+              totalAgendamentos: 1,
+              ultimoAgendamento: apt.data,
+              diasDesdeUltimo: 0,
+              status: "novo",
+            });
+          }
+          return;
+        }
 
         const existing = clienteMap.get(cliente.id);
         const dataAgendamento = new Date(apt.data);
@@ -96,8 +208,8 @@ const ClientAnalysis = () => {
         } else {
           clienteMap.set(cliente.id, {
             id: cliente.id,
-            nome: cliente.nome,
-            email: cliente.email,
+            nome: cliente.nome || "Cliente sem nome",
+            email: cliente.email || "email@nao-cadastrado.com",
             telefone: cliente.telefone || null,
             totalAgendamentos: 1,
             ultimoAgendamento: apt.data,
@@ -125,6 +237,9 @@ const ClientAnalysis = () => {
           status,
         };
       });
+
+      console.log("✅ Total de clientes processados:", clientesArray.length);
+      console.log("📋 Clientes:", clientesArray);
 
       setClientes(clientesArray);
     } catch (error) {
@@ -206,6 +321,15 @@ const ClientAnalysis = () => {
                 <p className="text-sm text-muted-foreground">{barbearia?.nome}</p>
               </div>
             </div>
+            <Button 
+              onClick={syncMissingProfiles} 
+              disabled={syncing}
+              variant="outline"
+              className="gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? "Sincronizando..." : "Sincronizar Profiles"}
+            </Button>
           </div>
         </div>
       </header>
