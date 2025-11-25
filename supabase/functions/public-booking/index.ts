@@ -125,6 +125,9 @@ serve(async (req) => {
       }
     }
 
+    // Extract parameters from body for booking flow
+    const { barbeariaId, barbeiroId, servicoId, date, time, nome, email, telefone, observacoes } = body;
+
     // 1) Validar relacionamento barbeiro/serviço/barbearia
     console.log("🔍 Fetching barbeiro...", { barbeiroId, barbeariaId });
     const { data: barbeiro, error: barbeiroErr } = await supabaseAdmin
