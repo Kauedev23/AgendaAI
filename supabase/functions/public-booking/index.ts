@@ -15,7 +15,7 @@ serve(async (req) => {
   try {
     const body = await req.json();
     console.log("📥 Request body:", JSON.stringify(body, null, 2));
-    const { action } = body || {};
+    const { action, barbeiroId, barbeariaId, servicoId, email, telefone, nome, date, time, observacoes } = body || {};
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
